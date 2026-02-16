@@ -1,0 +1,104 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+
+# Data files (large)
+data/raw/*.csv
+data/processed/*.csv
+data/models/**/*.json
+data/models/**/*.pkl
+!data/models/.gitkeep
+
+# Logs
+*.log
+logs/
+*.pid
+api_pid.txt
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# MLflow
+mlruns/
+mlflow_data/
+
+# Docker volumes
+postgres_data/
+redis_data/
+kafka_data/
+zookeeper_data/
+zookeeper_logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+temp/
+tmp/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Kafka
+*.log.*
+*.index
+*.timeindex
+*.snapshot
+
+# Keep directory structure
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/models/.gitkeep
+!notebooks/.gitkeep
+!tests/.gitkeep
+!deployment/.gitkeep
+!feast_repo/.gitkeep

@@ -70,6 +70,10 @@ class FeaturePipeline:
         """
         labels_full = pd.read_sql(labels_query, self.engine)
         
+        # Convert observation_date to datetime for both dataframes
+        features_df['observation_date'] = pd.to_datetime(features_df['observation_date'])
+        labels_full['observation_date'] = pd.to_datetime(labels_full['observation_date'])
+        
         # Merge features with labels
         final_df = features_df.merge(
             labels_full,

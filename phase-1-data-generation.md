@@ -147,7 +147,23 @@ CREATE TRIGGER update_interventions_updated_at BEFORE UPDATE ON interventions
 
 ## Create Synthetic Data Generator
 
-[PLACEHOLDER: Full synthetic_data.py code will be added when you provide Phase 1 details]
+Create src/data_generation/synthetic_data.py - This generates realistic banking data with behavioral patterns that indicate pre-delinquency risk.
+
+The generator creates:
+- 10,000 customers with varying income levels and account ages
+- Realistic transaction patterns (salary credits, daily spending)
+- Payment obligations (loans, credit cards, utilities)
+- Labels for ML training (20% default rate)
+- Behavioral signals (overspending, failed transactions, late payments)
+
+Key features:
+- Customers are assigned risk profiles (20% will show delinquent behavior)
+- Risky customers have: higher spending ratios, more failed transactions, irregular patterns
+- Healthy customers have: moderate spending, consistent patterns, on-time payments
+- Transactions span 12 months with realistic categories and amounts
+- Payment history includes EMIs, credit cards, utilities, insurance
+
+See `pre-delinquency-engine/src/data_generation/synthetic_data.py` for full implementation (500+ lines)
 
 ## Run Data Generation
 

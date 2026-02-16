@@ -28,7 +28,7 @@ np.random.seed(42)
 class SyntheticDataGenerator:
     """Generate synthetic banking data with realistic behavioral patterns"""
     
-    def __init__(self, n_customers: int = 10000):
+    def __init__(self, n_customers: int = 500):
         self.n_customers = n_customers
         self.start_date = datetime.now() - timedelta(days=365)
         self.end_date = datetime.now()
@@ -135,11 +135,11 @@ class SyntheticDataGenerator:
                 # Spending pattern based on default risk
                 if will_default:
                     # Risky behavior: more spending, irregular patterns
-                    daily_txn_count = random.randint(3, 8)
+                    daily_txn_count = random.randint(1, 3)
                     spending_ratio = random.uniform(1.1, 1.5)  # Overspending
                 else:
                     # Healthy behavior: moderate spending
-                    daily_txn_count = random.randint(2, 5)
+                    daily_txn_count = random.randint(1, 2)
                     spending_ratio = random.uniform(0.7, 0.95)  # Within means
                 
                 for day in range(days_in_month):
@@ -248,15 +248,15 @@ class SyntheticDataGenerator:
                     else:  # missed
                         paid_date = None
                         paid_amount = None
-                        days_late = (datetime.now().date() - due_date).days
+                        days_late = (datetime.now().date() - due_date.date()).days
                     
                     all_payments.append({
                         'payment_id': str(uuid.uuid4()),
                         'customer_id': customer_id,
                         'payment_type': payment_type,
-                        'due_date': due_date,
+                        'due_date': due_date.date() if hasattr(due_date, 'date') else due_date,
                         'amount': round(amount, 2),
-                        'paid_date': paid_date,
+                        'paid_date': paid_date.date() if paid_date and hasattr(paid_date, 'date') else paid_date,
                         'paid_amount': round(paid_amount, 2) if paid_amount else None,
                         'status': status_choice,
                         'days_late': days_late
@@ -278,7 +278,7 @@ class SyntheticDataGenerator:
             
             # Check for defaults in next 14-30 days window
             recent_payments = customer_payments[
-                customer_payments['due_date'] >= (self.end_date - timedelta(days=30))
+                pd.to_datetime(customer_payments['due_date']) >= (self.end_date - timedelta(days=30))
             ]
             
             # Label as 1 if any missed/late payments in the window
@@ -292,7 +292,10 @@ class SyntheticDataGenerator:
                     recent_payments['status'].isin(['missed', 'late'])
                 ].iloc[0]
                 default_date = default_payment['due_date']
-                days_to_default = (default_date - (self.end_date - timedelta(days=30))).days
+                observation_date = (self.end_date - timedelta(days=30)).date()
+                if isinstance(default_date, pd.Timestamp):
+                    default_date = default_date.date()
+                days_to_default = (default_date - observation_date).days
                 default_amount = default_payment['amount']
             else:
                 default_date = None
@@ -301,9 +304,9 @@ class SyntheticDataGenerator:
             
             labels.append({
                 'customer_id': customer_id,
-                'observation_date': self.end_date - timedelta(days=30),
+                'observation_date': (self.end_date - timedelta(days=30)).date(),
                 'label': 1 if has_default else 0,
-                'days_to_default': days_to_default,
+                'days_to_default': int(days_to_default) if days_to_default is not None else None,
                 'default_date': default_date,
                 'default_amount': default_amount
             })
@@ -345,7 +348,7 @@ class SyntheticDataGenerator:
                        %(channel)s, %(merchant_id)s, %(is_failed)s)
                 """,
                 txn_records,
-                page_size=1000
+                page_size=10000
             )
             
             # Insert payments
@@ -437,7 +440,7 @@ class SyntheticDataGenerator:
 
 def main():
     """Main execution"""
-    generator = SyntheticDataGenerator(n_customers=10000)
+    generator = SyntheticDataGenerator(n_customers=1000)
     generator.generate_all(save_to_db=True, save_to_csv=True)
 
 

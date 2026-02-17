@@ -30,7 +30,8 @@ class SyntheticDataGenerator:
     
     def __init__(self, n_customers: int = 500):
         self.n_customers = n_customers
-        self.start_date = datetime.now() - timedelta(days=365)
+        # Reduce time window to last 90 days instead of 365
+        self.start_date = datetime.now() - timedelta(days=90)
         self.end_date = datetime.now()
         
         # Transaction categories
@@ -103,8 +104,8 @@ class SyntheticDataGenerator:
             monthly_income = customer['monthly_income']
             salary_day = customer['salary_day']
             
-            # Determine if customer will become delinquent (20% probability)
-            will_default = random.random() < 0.2
+            # Determine if customer will become delinquent (30% probability for better balance)
+            will_default = random.random() < 0.3
             
             # Generate transactions for each month
             current_date = self.start_date
@@ -132,15 +133,15 @@ class SyntheticDataGenerator:
                 # Generate daily transactions
                 days_in_month = (month_end - month_start).days
                 
-                # Spending pattern based on default risk
+                # Spending pattern based on default risk - make patterns MORE distinct
                 if will_default:
-                    # Risky behavior: more spending, irregular patterns
-                    daily_txn_count = random.randint(1, 3)
-                    spending_ratio = random.uniform(1.1, 1.5)  # Overspending
+                    # Risky behavior: much more spending, irregular patterns
+                    daily_txn_count = random.randint(2, 4)  # More transactions
+                    spending_ratio = random.uniform(1.3, 1.8)  # Heavy overspending
                 else:
                     # Healthy behavior: moderate spending
-                    daily_txn_count = random.randint(1, 2)
-                    spending_ratio = random.uniform(0.7, 0.95)  # Within means
+                    daily_txn_count = random.randint(0, 1)  
+                    spending_ratio = random.uniform(0.6, 0.85)  # Conservative spending
                 
                 for day in range(days_in_month):
                     txn_date = month_start + timedelta(days=day)
@@ -166,8 +167,8 @@ class SyntheticDataGenerator:
                         amount_ratio = random.uniform(*amount_ranges.get(category, (0.01, 0.10)))
                         amount = monthly_income * amount_ratio * spending_ratio
                         
-                        # Failed transactions for risky customers
-                        is_failed = will_default and random.random() < 0.05
+                        # Failed transactions for risky customers - increase failure rate
+                        is_failed = will_default and random.random() < 0.15  # Increased from 0.05
                         
                         if not is_failed:
                             balance -= amount
@@ -201,14 +202,14 @@ class SyntheticDataGenerator:
             monthly_income = customer['monthly_income']
             
             # Determine if customer will have payment issues
-            will_default = random.random() < 0.2
+            will_default = random.random() < 0.3  # Match transaction default rate
             
-            # Generate monthly payments for past 12 months
-            for month_offset in range(12):
+            # Generate monthly payments for past 3 months (reduced from 12)
+            for month_offset in range(3):
                 due_date = self.end_date - timedelta(days=30 * month_offset)
                 
-                # Generate 2-4 payment obligations per month
-                for payment_type in random.sample(self.payment_types, k=random.randint(2, 4)):
+                # Generate 1-2 payment obligations per month (reduced from 2-4)
+                for payment_type in random.sample(self.payment_types, k=random.randint(1, 2)):
                     amount_ratios = {
                         'loan_emi': (0.15, 0.30),
                         'credit_card': (0.05, 0.20),
@@ -218,18 +219,18 @@ class SyntheticDataGenerator:
                     
                     amount = monthly_income * random.uniform(*amount_ratios[payment_type])
                     
-                    # Payment behavior
+                    # Payment behavior - make defaults more obvious
                     if will_default and month_offset < 3:  # Recent defaults
-                        # High chance of missed/late payments
+                        # Very high chance of missed/late payments
                         status_choice = random.choices(
                             ['paid', 'late', 'missed', 'partial'],
-                            weights=[0.2, 0.3, 0.3, 0.2]
+                            weights=[0.1, 0.3, 0.4, 0.2]  # More missed payments
                         )[0]
                     else:
                         # Mostly on-time payments
                         status_choice = random.choices(
                             ['paid', 'late', 'missed'],
-                            weights=[0.85, 0.10, 0.05]
+                            weights=[0.90, 0.07, 0.03]  # Even better payment history
                         )[0]
                     
                     # Calculate paid date and amount
@@ -248,7 +249,8 @@ class SyntheticDataGenerator:
                     else:  # missed
                         paid_date = None
                         paid_amount = None
-                        days_late = (datetime.now().date() - due_date.date()).days
+                        # Cap days_late at 365 to avoid integer overflow
+                        days_late = min(365, (datetime.now().date() - due_date.date()).days)
                     
                     all_payments.append({
                         'payment_id': str(uuid.uuid4()),
@@ -296,6 +298,8 @@ class SyntheticDataGenerator:
                 if isinstance(default_date, pd.Timestamp):
                     default_date = default_date.date()
                 days_to_default = (default_date - observation_date).days
+                # Cap days_to_default to prevent overflow
+                days_to_default = max(0, min(90, days_to_default))
                 default_amount = default_payment['amount']
             else:
                 default_date = None
@@ -323,6 +327,26 @@ class SyntheticDataGenerator:
         try:
             # Insert customers
             print(f"Inserting {len(customers_df)} customers...")
+            
+            # Debug: Check for problematic values
+            print("Checking customer data for integer overflow issues...")
+            if 'account_age_days' in customers_df.columns:
+                max_age = customers_df['account_age_days'].max()
+                min_age = customers_df['account_age_days'].min()
+                print(f"   account_age_days range: {min_age} to {max_age}")
+                # Ensure all values are within PostgreSQL INT range
+                customers_df['account_age_days'] = customers_df['account_age_days'].apply(
+                    lambda x: max(0, min(2147483647, int(x)))
+                )
+            
+            if 'salary_day' in customers_df.columns:
+                max_day = customers_df['salary_day'].max()
+                min_day = customers_df['salary_day'].min()
+                print(f"   salary_day range: {min_day} to {max_day}")
+                customers_df['salary_day'] = customers_df['salary_day'].apply(
+                    lambda x: max(1, min(31, int(x)))
+                )
+            
             customer_records = customers_df.to_dict('records')
             execute_batch(
                 cur,
@@ -353,6 +377,18 @@ class SyntheticDataGenerator:
             
             # Insert payments
             print(f"Inserting {len(payments_df)} payments...")
+            
+            # Debug: Check for problematic values
+            print("Checking payment data for integer overflow issues...")
+            if 'days_late' in payments_df.columns:
+                max_days = payments_df['days_late'].max()
+                min_days = payments_df['days_late'].min()
+                print(f"   days_late range: {min_days} to {max_days}")
+                # Ensure all values are within PostgreSQL INT range
+                payments_df['days_late'] = payments_df['days_late'].apply(
+                    lambda x: max(0, min(2147483647, int(x))) if not pd.isna(x) else 0
+                )
+            
             payment_records = payments_df.to_dict('records')
             execute_batch(
                 cur,
@@ -368,18 +404,52 @@ class SyntheticDataGenerator:
             
             # Insert labels
             print(f"Inserting {len(labels_df)} labels...")
+            
+            # Debug: Check for problematic values
+            print("Checking label data for integer overflow issues...")
+            
+            # Check all integer columns
+            for col in ['label', 'days_to_default']:
+                if col in labels_df.columns:
+                    non_null = labels_df[col].dropna()
+                    if len(non_null) > 0:
+                        max_val = non_null.max()
+                        min_val = non_null.min()
+                        print(f"   {col} range: {min_val} to {max_val}")
+            
+            # Convert to records first
             label_records = labels_df.to_dict('records')
-            execute_batch(
-                cur,
-                """
-                INSERT INTO labels (customer_id, observation_date, label, days_to_default,
-                                  default_date, default_amount)
-                VALUES (%(customer_id)s, %(observation_date)s, %(label)s, %(days_to_default)s,
-                       %(default_date)s, %(default_amount)s)
-                ON CONFLICT (customer_id, observation_date) DO NOTHING
-                """,
-                label_records
-            )
+            
+            # Manually clean each record to replace NaN with None
+            for record in label_records:
+                for key, value in record.items():
+                    if pd.isna(value):
+                        record[key] = None
+                    elif key == 'label':
+                        record[key] = int(value)
+                    elif key == 'days_to_default' and value is not None:
+                        record[key] = int(value)
+            
+            if label_records:
+                print(f"   Sample record after cleanup: {label_records[0]}")
+                for key, value in label_records[0].items():
+                    print(f"     {key}: {type(value)} = {value}")
+            
+            try:
+                execute_batch(
+                    cur,
+                    """
+                    INSERT INTO labels (customer_id, observation_date, label, days_to_default,
+                                      default_date, default_amount)
+                    VALUES (%(customer_id)s, %(observation_date)s, %(label)s, %(days_to_default)s,
+                           %(default_date)s, %(default_amount)s)
+                    ON CONFLICT (customer_id, observation_date) DO NOTHING
+                    """,
+                    label_records
+                )
+            except Exception as e:
+                print(f"   Error details: {e}")
+                raise
             
             conn.commit()
             print("✅ Data successfully saved to database!")
@@ -440,7 +510,7 @@ class SyntheticDataGenerator:
 
 def main():
     """Main execution"""
-    generator = SyntheticDataGenerator(n_customers=1000)
+    generator = SyntheticDataGenerator(n_customers=500)
     generator.generate_all(save_to_db=True, save_to_csv=True)
 
 

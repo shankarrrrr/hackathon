@@ -10,6 +10,24 @@ import streamlit as st
 from sqlalchemy import create_engine
 from datetime import datetime
 
+# Import UI components
+from ui_components import (
+    apply_custom_css,
+    format_risk_score,
+    format_timestamp,
+    format_date,
+    get_risk_level_color_map,
+    get_risk_emoji,
+    render_risk_badge,
+    render_risk_driver_card,
+    render_gauge_chart,
+    render_histogram,
+    render_pie_chart,
+    render_scatter_plot,
+    render_confusion_matrix,
+    render_footer
+)
+
 # Page configuration
 st.set_page_config(
     page_title="Pre-Delinquency Engine",
@@ -18,40 +36,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS styling
-st.markdown("""
-    <style>
-    /* Metric card styling */
-    div[data-testid="stMetric"] {
-        background-color: #f0f2f6;
-        padding: 15px;
-        border-radius: 10px;
-    }
-    
-    /* Title styling */
-    h1, h2, h3 {
-        color: #1f77b4;
-    }
-    
-    /* Highlight styling */
-    .highlight {
-        background-color: #fff3cd;
-        padding: 10px;
-        border-radius: 5px;
-        border-left: 4px solid #ffc107;
-    }
-    
-    /* Footer styling */
-    .footer {
-        text-align: center;
-        padding: 20px;
-        color: #666;
-        font-size: 0.9em;
-        margin-top: 50px;
-        border-top: 1px solid #ddd;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# Apply custom CSS styling
+apply_custom_css()
 
 
 @st.cache_resource
@@ -89,97 +75,17 @@ def init_connections():
 # Initialize connections
 engine, API_URL = init_connections()
 
-# ============================================================================
-# FORMATTING HELPER FUNCTIONS
-# ============================================================================
-
-def format_risk_score(risk_score):
-    """
-    Format risk score as percentage with 2 decimal places.
-    
-    Args:
-        risk_score: Float value between 0 and 1
-        
-    Returns:
-        str: Formatted percentage string (e.g., "75.00%")
-    """
-    return f"{risk_score:.2%}"
-
-
-def format_timestamp(timestamp):
-    """
-    Format timestamp in YYYY-MM-DD HH:MM:SS format.
-    
-    Args:
-        timestamp: datetime object or string
-        
-    Returns:
-        str: Formatted timestamp string
-    """
-    if hasattr(timestamp, 'strftime'):
-        return timestamp.strftime('%Y-%m-%d %H:%M:%S')
-    return str(timestamp)
-
-
-def format_date(date_obj):
-    """
-    Format date in YYYY-MM-DD format (for dates without time component).
-    
-    Args:
-        date_obj: datetime object or string
-        
-    Returns:
-        str: Formatted date string
-    """
-    if hasattr(date_obj, 'strftime'):
-        # If it has time component, include it
-        if hasattr(date_obj, 'hour'):
-            return date_obj.strftime('%Y-%m-%d %H:%M:%S')
-        return date_obj.strftime('%Y-%m-%d')
-    return str(date_obj)
-
-
-def get_risk_level_color_map():
-    """
-    Get consistent color mapping for risk levels.
-    
-    Returns:
-        dict: Mapping of risk levels to colors
-    """
-    return {
-        'LOW': 'green',
-        'MEDIUM': 'yellow',
-        'HIGH': 'orange',
-        'CRITICAL': 'red'
-    }
-
-
-def get_risk_emoji(risk_level):
-    """
-    Map risk level to emoji indicator.
-    
-    Args:
-        risk_level: Risk level string (LOW, MEDIUM, HIGH, CRITICAL)
-        
-    Returns:
-        str: Emoji indicator
-    """
-    emoji_map = {
-        'LOW': '🟢',
-        'MEDIUM': '🟡',
-        'HIGH': '🟠',
-        'CRITICAL': '🔴'
-    }
-    return emoji_map.get(risk_level, '⚪')
+# Formatting functions are now imported from ui_components
 
 # ============================================================================
 # SIDEBAR NAVIGATION
 # ============================================================================
 
-st.sidebar.title("🎯 Pre-Delinquency Engine")
+st.sidebar.markdown("<h1 style='font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;'>🎯 Pre-Delinquency Engine</h1>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 
-# Page selector
+# Page selector with improved styling
+st.sidebar.markdown("<h3 style='font-size: 0.6875rem; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem;'>📍 NAVIGATION</h3>", unsafe_allow_html=True)
 page = st.sidebar.selectbox(
     "Navigate to:",
     [
@@ -188,13 +94,14 @@ page = st.sidebar.selectbox(
         "Real-time Monitor",
         "Model Performance",
         "Interventions Tracker"
-    ]
+    ],
+    label_visibility="collapsed"
 )
 
 st.sidebar.markdown("---")
 
-# Quick stats section
-st.sidebar.subheader("📊 Quick Stats")
+# Quick stats section with improved layout
+st.sidebar.markdown("<h3 style='font-size: 0.6875rem; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem;'>📊 QUICK STATS</h3>", unsafe_allow_html=True)
 
 try:
     import requests
@@ -385,8 +292,19 @@ def load_recent_risk_scores():
 # MAIN CONTENT AREA
 # ============================================================================
 
-# Display selected page title
-st.title(f"📈 {page}")
+# Display selected page title with improved styling
+st.markdown(f"<h1 style='margin-bottom: 0.5rem;'>📈 {page}</h1>", unsafe_allow_html=True)
+
+# Add page description based on selected page
+page_descriptions = {
+    "Risk Overview": "Monitor key risk metrics and identify high-risk customers across your portfolio.",
+    "Customer Deep Dive": "Analyze individual customer risk profiles with AI-powered explanations.",
+    "Real-time Monitor": "Track risk scores updating in real-time with automatic refresh capability.",
+    "Model Performance": "View model evaluation metrics and performance diagnostics.",
+    "Interventions Tracker": "Track intervention outcomes and measure effectiveness over time."
+}
+
+st.markdown(f"<p style='color: #000000; font-size: 15px; margin-bottom: 2rem;'>{page_descriptions.get(page, '')}</p>", unsafe_allow_html=True)
 
 # ============================================================================
 # RISK OVERVIEW PAGE
@@ -397,10 +315,11 @@ if page == "Risk Overview":
     df = load_latest_risk_scores()
     
     if df is None or len(df) == 0:
-        st.info("No risk score data available. Please run batch scoring first.")
+        st.info("📭 No risk score data available. Please run batch scoring first.")
     else:
-        # Top metrics row
-        st.subheader("📊 Key Metrics")
+        # Top metrics row with improved spacing
+        st.markdown("### 📊 Key Metrics")
+        st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
         
         col1, col2, col3, col4 = st.columns(4)
         
@@ -442,49 +361,29 @@ if page == "Risk Overview":
         
         st.markdown("---")
         
-        # Risk distribution histogram and pie chart
-        col1, col2 = st.columns(2)
+        # Risk distribution histogram and pie chart with improved spacing
+        st.markdown("### 📊 Risk Distribution Analysis")
+        st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
+        
+        col1, col2 = st.columns(2, gap="large")
         
         with col1:
-            st.subheader("📊 Risk Score Distribution")
+            st.markdown("#### 📊 Risk Score Distribution")
+            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
             
             try:
-                import plotly.graph_objects as go
+                # Create histogram using UI component
+                thresholds = [
+                    (0.6, "High Risk (0.6)", "orange"),
+                    (0.8, "Critical (0.8)", "red")
+                ]
                 
-                # Create histogram
-                fig = go.Figure()
-                
-                fig.add_trace(go.Histogram(
-                    x=df['risk_score'],
-                    nbinsx=30,
-                    name='Risk Score',
-                    marker_color='#1f77b4'
-                ))
-                
-                # Add vertical lines at thresholds
-                fig.add_vline(
-                    x=0.6,
-                    line_dash="dash",
-                    line_color="orange",
-                    annotation_text="High Risk (0.6)",
-                    annotation_position="top"
-                )
-                
-                fig.add_vline(
-                    x=0.8,
-                    line_dash="dash",
-                    line_color="red",
-                    annotation_text="Critical (0.8)",
-                    annotation_position="top"
-                )
-                
-                # Configure chart
-                fig.update_layout(
+                fig = render_histogram(
+                    data=df['risk_score'],
                     title="Distribution of Customer Risk Scores",
                     xaxis_title="Risk Score",
                     yaxis_title="Number of Customers",
-                    showlegend=False,
-                    height=400
+                    thresholds=thresholds
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
@@ -496,31 +395,22 @@ if page == "Risk Overview":
                 st.info("The dashboard will continue operating. Chart rendering issue logged.")
         
         with col2:
-            st.subheader("🎯 Risk Level Breakdown")
+            st.markdown("#### 🎯 Risk Level Breakdown")
+            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
             
             try:
-                import plotly.graph_objects as go
-                
                 # Count customers by risk level
                 risk_counts = df['risk_level'].value_counts()
                 
                 # Get consistent color mapping
                 color_map = get_risk_level_color_map()
                 
-                # Create colors list in the order of risk_counts
-                colors = [color_map.get(level, 'gray') for level in risk_counts.index]
-                
-                # Create pie chart
-                fig = go.Figure(data=[go.Pie(
+                # Create pie chart using UI component
+                fig = render_pie_chart(
                     labels=risk_counts.index,
                     values=risk_counts.values,
-                    marker=dict(colors=colors),
-                    hole=0.3
-                )])
-                
-                fig.update_layout(
                     title="Customers by Risk Level",
-                    height=400
+                    color_map=color_map
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
@@ -533,8 +423,9 @@ if page == "Risk Overview":
         
         st.markdown("---")
         
-        # Rising risk customers table
-        st.subheader("⚠️ Rising Risk Customers")
+        # Rising risk customers table with improved styling
+        st.markdown("### ⚠️ Rising Risk Customers")
+        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Customers with increasing risk scores requiring immediate attention</p>", unsafe_allow_html=True)
         
         rising_df = load_rising_risk_customers()
         
@@ -558,20 +449,52 @@ if page == "Risk Overview":
         
         with col2:
             if st.button("🚀 Trigger Interventions for High Risk Customers", use_container_width=True):
-                # Calculate number of high-risk customers
-                high_risk_count = len(df[df['risk_level'].isin(['HIGH', 'CRITICAL'])])
-                st.success(f"✅ Successfully triggered {high_risk_count} interventions for high-risk customers!")
+                # Get high-risk customers
+                high_risk_df = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]
+                high_risk_count = len(high_risk_df)
+                
+                if high_risk_count > 0 and engine is not None:
+                    try:
+                        from sqlalchemy import text
+                        from datetime import datetime
+                        
+                        # Insert intervention records for each high-risk customer
+                        with engine.begin() as conn:
+                            for _, row in high_risk_df.iterrows():
+                                # Determine intervention type based on risk level
+                                intervention_type = 'urgent_contact' if row['risk_level'] == 'CRITICAL' else 'proactive_outreach'
+                                
+                                # Insert intervention record
+                                insert_query = text("""
+                                    INSERT INTO interventions 
+                                    (customer_id, intervention_type, risk_score, intervention_date, customer_response)
+                                    VALUES (:customer_id, :intervention_type, :risk_score, :intervention_date, :customer_response)
+                                """)
+                                
+                                conn.execute(insert_query, {
+                                    'customer_id': row['customer_id'],
+                                    'intervention_type': intervention_type,
+                                    'risk_score': row['risk_score'],
+                                    'intervention_date': datetime.now(),
+                                    'customer_response': 'pending'
+                                })
+                        
+                        st.success(f"✅ Successfully triggered {high_risk_count} interventions for high-risk customers!")
+                    except Exception as e:
+                        st.error(f"❌ Error creating interventions: {str(e)}")
+                else:
+                    st.warning("⚠️ No high-risk customers found or database not available.")
 
 # ============================================================================
 # CUSTOMER DEEP DIVE PAGE
 # ============================================================================
 
 elif page == "Customer Deep Dive":
-    st.markdown("Analyze individual customer risk profiles with AI-powered explanations.")
-    st.markdown("---")
+    # Customer ID input and analyze button with improved layout
+    st.markdown("### 🔍 Customer Analysis")
+    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
     
-    # Customer ID input and analyze button (Task 5.1)
-    col1, col2 = st.columns([3, 1])
+    col1, col2 = st.columns([4, 1], gap="medium")
     
     with col1:
         customer_id = st.text_input(
@@ -581,8 +504,9 @@ elif page == "Customer Deep Dive":
         )
     
     with col2:
-        st.markdown("<br>", unsafe_allow_html=True)  # Add spacing to align button
         analyze_button = st.button("🔍 Analyze", type="primary", use_container_width=True)
+    
+    st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     
     # Process analysis when button is clicked
     if analyze_button and customer_id:
@@ -608,53 +532,19 @@ elif page == "Customer Deep Dive":
                     top_drivers = explanation.get('top_drivers', [])
                     
                     st.success("✅ Analysis complete!")
-                    st.markdown("---")
+                    st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
                     
-                    # Display results in two columns
-                    col1, col2 = st.columns([1, 1])
+                    # Display results in two columns with improved spacing
+                    col1, col2 = st.columns(2, gap="large")
                     
                     with col1:
                         # Risk score gauge chart (Task 5.3)
-                        st.subheader("📊 Risk Score")
+                        st.markdown("#### 📊 Risk Score")
+                        st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
                         
                         try:
-                            import plotly.graph_objects as go
-                            
-                            # Convert risk score to 0-100 scale
-                            risk_score_100 = risk_score * 100
-                            
-                            # Create gauge chart
-                            fig = go.Figure(go.Indicator(
-                                mode="gauge+number",
-                                value=risk_score_100,
-                                domain={'x': [0, 1], 'y': [0, 1]},
-                                title={'text': "Risk Score", 'font': {'size': 20}},
-                                number={'suffix': "", 'font': {'size': 40}},
-                                gauge={
-                                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                                    'bar': {'color': "darkblue"},
-                                    'bgcolor': "white",
-                                    'borderwidth': 2,
-                                    'bordercolor': "gray",
-                                    'steps': [
-                                        {'range': [0, 40], 'color': 'green'},
-                                        {'range': [40, 60], 'color': 'yellow'},
-                                        {'range': [60, 80], 'color': 'orange'},
-                                        {'range': [80, 100], 'color': 'red'}
-                                    ],
-                                    'threshold': {
-                                        'line': {'color': "black", 'width': 4},
-                                        'thickness': 0.75,
-                                        'value': risk_score_100
-                                    }
-                                }
-                            ))
-                            
-                            fig.update_layout(
-                                height=300,
-                                margin=dict(l=20, r=20, t=50, b=20)
-                            )
-                            
+                            # Create gauge chart using UI component
+                            fig = render_gauge_chart(risk_score, "Risk Score")
                             st.plotly_chart(fig, use_container_width=True)
                             
                         except Exception as e:
@@ -663,62 +553,37 @@ elif page == "Customer Deep Dive":
                     
                     with col2:
                         # Risk level badge with emoji (Task 5.4)
-                        st.subheader("🎯 Risk Level")
+                        st.markdown("#### 🎯 Risk Level")
+                        st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
                         
-                        # Get emoji using helper function
-                        emoji = get_risk_emoji(risk_level)
-                        
-                        # Display risk level with emoji
-                        st.markdown(f"""
-                            <div style='text-align: center; padding: 40px 20px;'>
-                                <div style='font-size: 80px; margin-bottom: 20px;'>{emoji}</div>
-                                <div style='font-size: 32px; font-weight: bold; color: #1f77b4;'>{risk_level}</div>
-                            </div>
-                        """, unsafe_allow_html=True)
+                        # Render risk badge using UI component
+                        render_risk_badge(risk_level)
                     
-                    st.markdown("---")
+                    st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
                     
                     # SHAP explanation and top risk drivers (Task 5.6)
-                    st.subheader("💡 Risk Explanation")
+                    st.markdown("### 💡 Risk Explanation")
+                    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
                     
                     # Display explanation text in info box
                     st.info(explanation_text)
                     
-                    st.markdown("---")
+                    st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
                     
                     # Display top risk drivers
-                    st.subheader("📈 Top Risk Drivers")
+                    st.markdown("### 📈 Top Risk Drivers")
+                    st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Key factors contributing to this customer's risk score</p>", unsafe_allow_html=True)
                     
                     if top_drivers and len(top_drivers) > 0:
-                        # Display top 5 drivers
+                        # Display top 5 drivers using UI component
                         for i, driver in enumerate(top_drivers[:5], 1):
                             feature = driver.get('feature', 'Unknown')
                             value = driver.get('value', 'N/A')
                             impact = driver.get('impact', 0)
                             impact_pct = driver.get('impact_pct', 0)
                             
-                            # Format impact with +/- sign
-                            impact_sign = '+' if impact >= 0 else ''
-                            impact_str = f"{impact_sign}{impact_pct:.1f}%"
-                            
-                            # Emoji indicator for positive/negative impact
-                            impact_emoji = '📈' if impact >= 0 else '📉'
-                            
-                            # Display driver in a styled box
-                            st.markdown(f"""
-                                <div style='background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px;'>
-                                    <div style='display: flex; justify-content: space-between; align-items: center;'>
-                                        <div>
-                                            <strong>{i}. {feature}</strong><br>
-                                            <span style='color: #666;'>Current Value: {value}</span>
-                                        </div>
-                                        <div style='text-align: right;'>
-                                            <span style='font-size: 24px;'>{impact_emoji}</span><br>
-                                            <strong style='font-size: 18px; color: {"#d9534f" if impact >= 0 else "#5cb85c"};'>{impact_str}</strong>
-                                        </div>
-                                    </div>
-                                </div>
-                            """, unsafe_allow_html=True)
+                            # Render driver card using UI component
+                            render_risk_driver_card(i, feature, value, impact, impact_pct)
                     else:
                         st.info("No risk drivers available for this customer.")
                 
@@ -759,11 +624,11 @@ elif page == "Customer Deep Dive":
 # ============================================================================
 
 elif page == "Real-time Monitor":
-    st.markdown("Monitor risk scores updating in real-time with automatic refresh capability.")
-    st.markdown("---")
+    # Auto-refresh checkbox and manual refresh button with improved layout
+    st.markdown("### ⚙️ Monitor Settings")
+    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
     
-    # Auto-refresh checkbox and manual refresh button (Task 6.3)
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2, col3 = st.columns([3, 1, 1], gap="medium")
     
     with col1:
         auto_refresh = st.checkbox("🔄 Auto-refresh (every 5 seconds)", value=True)
@@ -774,7 +639,7 @@ elif page == "Real-time Monitor":
     with col3:
         st.markdown("")  # Spacer
     
-    st.markdown("---")
+    st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
     
     # Load recent risk scores (Task 6.1)
     df = load_recent_risk_scores()
@@ -783,32 +648,22 @@ elif page == "Real-time Monitor":
         st.info("No risk scores recorded in the last hour. Data will appear here as new scores are generated.")
     else:
         # Time-series scatter plot (Task 6.4)
-        st.subheader("📈 Risk Scores Over Time")
+        st.markdown("### 📈 Risk Scores Over Time")
+        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Real-time visualization of risk score updates in the last hour</p>", unsafe_allow_html=True)
         
         try:
-            import plotly.express as px
-            
             # Get consistent color mapping for risk levels
             color_map = get_risk_level_color_map()
             
-            # Create scatter plot
-            fig = px.scatter(
-                df,
-                x='score_date',
-                y='risk_score',
-                color='risk_level',
-                color_discrete_map=color_map,
-                hover_data=['customer_id', 'top_feature_1'],
-                title='Risk Scores in the Last Hour'
-            )
-            
-            # Update layout
-            fig.update_layout(
-                xaxis_title='Timestamp',
-                yaxis_title='Risk Score',
-                height=400,
-                showlegend=True,
-                legend_title_text='Risk Level'
+            # Create scatter plot using UI component
+            fig = render_scatter_plot(
+                df=df,
+                x_col='score_date',
+                y_col='risk_score',
+                color_col='risk_level',
+                title='Risk Scores in the Last Hour',
+                color_map=color_map,
+                hover_data=['customer_id', 'top_feature_1']
             )
             
             # Update y-axis to show 0-1 range
@@ -821,10 +676,11 @@ elif page == "Real-time Monitor":
             st.dataframe(df[['score_date', 'customer_id', 'risk_score', 'risk_level']])
             st.info("The dashboard will continue operating. Chart rendering issue logged.")
         
-        st.markdown("---")
+        st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
         
         # Recent updates table (Task 6.7)
-        st.subheader("📋 Recent Updates")
+        st.markdown("### 📋 Recent Updates")
+        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Latest risk score calculations and updates</p>", unsafe_allow_html=True)
         
         # Format data for display
         display_df = df.copy()
@@ -854,9 +710,6 @@ elif page == "Real-time Monitor":
 # ============================================================================
 
 elif page == "Model Performance":
-    st.markdown("View model evaluation metrics and performance diagnostics.")
-    st.markdown("---")
-    
     # Load model metrics from JSON file (Task 8.1)
     try:
         import json
@@ -867,7 +720,8 @@ elif page == "Model Performance":
             metrics = json.load(f)
         
         # Display key metrics cards (Task 8.2)
-        st.subheader("📊 Key Performance Metrics")
+        st.markdown("### 📊 Key Performance Metrics")
+        st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
         
         col1, col2, col3, col4 = st.columns(4)
         
@@ -906,46 +760,18 @@ elif page == "Model Performance":
         st.markdown("---")
         
         # Create confusion matrix heatmap (Task 8.3)
-        st.subheader("🔢 Confusion Matrix")
+        st.markdown("### 🔢 Confusion Matrix")
+        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Model prediction accuracy breakdown</p>", unsafe_allow_html=True)
         
         try:
-            import plotly.graph_objects as go
-            import numpy as np
-            
             # Extract confusion matrix values
             tp = metrics.get('true_positives', 0)
             tn = metrics.get('true_negatives', 0)
             fp = metrics.get('false_positives', 0)
             fn = metrics.get('false_negatives', 0)
             
-            # Create confusion matrix array
-            # Format: [[TN, FP], [FN, TP]]
-            confusion_matrix = np.array([
-                [tn, fp],
-                [fn, tp]
-            ])
-            
-            # Create heatmap
-            fig = go.Figure(data=go.Heatmap(
-                z=confusion_matrix,
-                x=['Predicted Negative', 'Predicted Positive'],
-                y=['Actual Negative', 'Actual Positive'],
-                text=confusion_matrix,
-                texttemplate='%{text}',
-                textfont={"size": 20},
-                colorscale='Blues',
-                showscale=True
-            ))
-            
-            # Configure axis labels
-            fig.update_layout(
-                title='Confusion Matrix',
-                xaxis_title='Predicted',
-                yaxis_title='Actual',
-                height=400,
-                xaxis={'side': 'bottom'},
-                yaxis={'autorange': 'reversed'}
-            )
+            # Create confusion matrix using UI component
+            fig = render_confusion_matrix(tp, tn, fp, fn, "Confusion Matrix")
             
             st.plotly_chart(fig, use_container_width=True)
             
@@ -964,7 +790,8 @@ elif page == "Model Performance":
         st.markdown("---")
         
         # Display business metrics summary (Task 8.4)
-        st.subheader("💼 Business Metrics")
+        st.markdown("### 💼 Business Metrics")
+        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Key business impact indicators</p>", unsafe_allow_html=True)
         
         # Calculate business metrics
         accuracy = metrics.get('accuracy', 0)
@@ -1002,7 +829,8 @@ elif page == "Model Performance":
         st.markdown("---")
         
         # Add markdown summary with key findings
-        st.subheader("📝 Summary")
+        st.markdown("### 📝 Performance Summary")
+        st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
         
         st.markdown(f"""
         ### Key Findings
@@ -1052,13 +880,11 @@ elif page == "Model Performance":
 # ============================================================================
 
 elif page == "Interventions Tracker":
-    st.markdown("Track intervention outcomes and measure effectiveness over time.")
-    st.markdown("---")
-    
     # Time period selector (Task 9.1)
-    st.subheader("⏱️ Select Time Period")
+    st.markdown("### ⏱️ Select Time Period")
+    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
     
-    col1, col2 = st.columns([2, 1])
+    col1, col2 = st.columns([4, 1], gap="medium")
     
     with col1:
         # Selectbox with time period options
@@ -1070,10 +896,10 @@ elif page == "Interventions Tracker":
         )
     
     with col2:
-        st.markdown("<br>", unsafe_allow_html=True)  # Add spacing to align button
+        st.markdown("<div style='margin-top: 1.85rem;'></div>", unsafe_allow_html=True)
         calculate_button = st.button("📊 Calculate Metrics", type="primary", use_container_width=True)
     
-    st.markdown("---")
+    st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
     
     # Process when button is clicked
     if calculate_button:
@@ -1122,7 +948,8 @@ elif page == "Interventions Tracker":
                     """)
                 else:
                     # Display aggregate metrics (Task 9.4)
-                    st.subheader("📊 Aggregate Metrics")
+                    st.markdown("### 📊 Aggregate Metrics")
+                    st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
                     
                     # Calculate metrics
                     total_interventions = len(df)
@@ -1163,7 +990,8 @@ elif page == "Interventions Tracker":
                     st.markdown("---")
                     
                     # Display recent interventions table (Task 9.5)
-                    st.subheader("📋 Recent Interventions")
+                    st.markdown("### 📋 Recent Interventions")
+                    st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Latest intervention activities and customer responses</p>", unsafe_allow_html=True)
                     
                     # Format data for display
                     display_df = df.head(20).copy()  # Limit to 20 rows
@@ -1190,7 +1018,8 @@ elif page == "Interventions Tracker":
                     
                     # Additional insights
                     st.markdown("---")
-                    st.subheader("💡 Insights")
+                    st.markdown("### 💡 Insights")
+                    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
                     
                     # Breakdown by intervention type
                     intervention_breakdown = df['intervention_type'].value_counts()
@@ -1227,18 +1056,5 @@ elif page == "Interventions Tracker":
 # FOOTER (displayed on all pages)
 # ============================================================================
 
-st.markdown("---")
-
-# Create footer with metadata (Task 11.1)
-from datetime import datetime
-
-# Get current timestamp
-last_updated = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-# Display footer with application name, version, and last updated timestamp
-st.markdown(f"""
-    <div class='footer'>
-        <strong>Pre-Delinquency Intervention Engine Dashboard</strong> | Version 1.0.0<br>
-        Last Updated: {last_updated}
-    </div>
-""", unsafe_allow_html=True)
+# Render footer using UI component
+render_footer()

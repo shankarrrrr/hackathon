@@ -15,7 +15,7 @@ warnings.filterwarnings('ignore')
 class BehavioralSimulator:
     """Simulates realistic financial behavior patterns over time"""
     
-    def __init__(self, n_customers: int = 30000, weeks: int = 12, seed: int = 42):
+    def __init__(self, n_customers: int = 10000, weeks: int = 12, seed: int = 42):
         self.n_customers = n_customers
         self.weeks = weeks
         self.seed = seed

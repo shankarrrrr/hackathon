@@ -23,7 +23,7 @@ class BehavioralSimulator:
         
     def generate_customer_profiles(self) -> pd.DataFrame:
         """Generate base customer profiles"""
-        print(f"Generating {self.n_customers} customer profiles...")
+        print(f"  → Generating {self.n_customers:,} customer profiles...", end='', flush=True)
         
         profiles = {
             'customer_id': [f'CUST_{i:06d}' for i in range(self.n_customers)],
@@ -33,10 +33,12 @@ class BehavioralSimulator:
             'baseline_savings': np.random.lognormal(9, 1.2, self.n_customers),
         }
         
+        print(" ✓")
         return pd.DataFrame(profiles)
     
     def simulate_cash_flow_signals(self, profiles: pd.DataFrame) -> Dict[str, np.ndarray]:
         """Simulate cash flow behavior over time"""
+        print("  → Cash flow signals...", end='', flush=True)
         n = len(profiles)
         
         # Salary credit patterns
@@ -47,6 +49,7 @@ class BehavioralSimulator:
         savings_change = np.random.normal(0, 0.2, (n, self.weeks))
         liquidity_ratio = np.clip(np.random.beta(2, 5, (n, self.weeks)), 0.01, 1)
         
+        print(" ✓")
         return {
             'salary_delay_weeks': salary_delay_weeks,
             'salary_drop_pct': salary_drop_pct,
@@ -56,6 +59,7 @@ class BehavioralSimulator:
     
     def simulate_payment_stress(self, profiles: pd.DataFrame) -> Dict[str, np.ndarray]:
         """Simulate payment stress indicators"""
+        print("  → Payment stress signals...", end='', flush=True)
         n = len(profiles)
         
         # Payment delays
@@ -68,6 +72,7 @@ class BehavioralSimulator:
         # Credit card behavior
         cc_min_payment_ratio = np.clip(np.random.beta(8, 2, (n, self.weeks)), 0, 1)
         
+        print(" ✓")
         return {
             'utility_delay_days': utility_delay_days,
             'emi_delay_days': emi_delay_days,
@@ -77,6 +82,7 @@ class BehavioralSimulator:
     
     def simulate_spending_signals(self, profiles: pd.DataFrame) -> Dict[str, np.ndarray]:
         """Simulate spending pattern changes"""
+        print("  → Spending signals...", end='', flush=True)
         n = len(profiles)
         
         # Spending changes
@@ -88,6 +94,7 @@ class BehavioralSimulator:
         lending_app_transfers = np.random.poisson(0.4, (n, self.weeks))
         gambling_txns = np.random.poisson(0.2, (n, self.weeks))
         
+        print(" ✓")
         return {
             'discretionary_drop_pct': discretionary_drop_pct,
             'atm_withdrawal_spike': atm_withdrawal_spike,
@@ -98,6 +105,7 @@ class BehavioralSimulator:
     
     def simulate_cross_product_signals(self, profiles: pd.DataFrame) -> Dict[str, np.ndarray]:
         """Simulate cross-product stress indicators"""
+        print("  → Cross-product signals...", end='', flush=True)
         n = len(profiles)
         
         # Credit utilization
@@ -109,6 +117,7 @@ class BehavioralSimulator:
         # Channel anomalies
         channel_anomaly_score = np.clip(np.random.beta(1, 9, (n, self.weeks)), 0, 1)
         
+        print(" ✓")
         return {
             'credit_util_change': credit_util_change,
             'multi_account_stress': multi_account_stress,
@@ -122,11 +131,16 @@ class BehavioralSimulator:
                           spending: Dict,
                           cross_product: Dict) -> pd.DataFrame:
         """Aggregate time-series into ML-ready features"""
-        print("Aggregating features...")
+        print("  → Aggregating features...", end='', flush=True)
         
         features = []
+        n = len(profiles)
         
-        for i in range(len(profiles)):
+        for i in range(n):
+            # Show progress every 2000 customers
+            if i > 0 and i % 2000 == 0:
+                print(f"\r  → Aggregating features... {i}/{n} ({i*100//n}%)", end='', flush=True)
+            
             # Aggregate over last 4 weeks (most recent)
             recent_weeks = slice(-4, None)
             
@@ -186,11 +200,12 @@ class BehavioralSimulator:
             
             features.append(feat)
         
+        print(" ✓")
         return pd.DataFrame(features)
     
     def generate_labels(self, features: pd.DataFrame) -> np.ndarray:
         """Generate probabilistic labels using logistic-style function"""
-        print("Generating labels...")
+        print("  → Generating labels...", end='', flush=True)
         
         # Compute stress score (weighted combination)
         stress_score = (
@@ -224,7 +239,7 @@ class BehavioralSimulator:
         labels = (np.random.random(len(probability)) < probability).astype(int)
         
         positive_rate = labels.mean()
-        print(f"Generated labels: {positive_rate*100:.1f}% positive rate")
+        print(f" ✓ ({positive_rate*100:.1f}% positive)")
         
         return labels
     

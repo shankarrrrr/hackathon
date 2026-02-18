@@ -71,11 +71,15 @@ AMI_ID=$(aws ec2 describe-images \
 
 echo -e "${GREEN}✅ Using AMI: $AMI_ID${NC}"
 
+# Use t3.micro (free tier eligible)
+INSTANCE_TYPE="t3.micro"
+echo "Using instance type: $INSTANCE_TYPE"
+
 # Launch EC2 instance
-echo "Launching EC2 instance (t2.micro)..."
+echo "Launching EC2 instance ($INSTANCE_TYPE)..."
 INSTANCE_ID=$(aws ec2 run-instances \
   --image-id $AMI_ID \
-  --instance-type t2.micro \
+  --instance-type $INSTANCE_TYPE \
   --key-name $KEY_NAME \
   --security-group-ids $SG_ID \
   --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":30,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
@@ -197,10 +201,22 @@ sleep 30
 
 # Copy and execute setup script
 echo -e "${YELLOW}Copying setup script to instance...${NC}"
-scp -i ~/.ssh/$KEY_NAME.pem -o StrictHostKeyChecking=no /tmp/setup-instance.sh ubuntu@$PUBLIC_IP:/tmp/
+# Try multiple key locations
+if [ -f ~/.ssh/$KEY_NAME.pem ]; then
+  KEY_PATH=~/.ssh/$KEY_NAME.pem
+elif [ -f ~/$KEY_NAME.pem ]; then
+  KEY_PATH=~/$KEY_NAME.pem
+elif [ -f ./$KEY_NAME.pem ]; then
+  KEY_PATH=./$KEY_NAME.pem
+else
+  echo -e "${RED}Key file not found!${NC}"
+  exit 1
+fi
+
+scp -i $KEY_PATH -o StrictHostKeyChecking=no /tmp/setup-instance.sh ubuntu@$PUBLIC_IP:/tmp/
 
 echo -e "${YELLOW}Running setup script (this will take 5-10 minutes)...${NC}"
-ssh -i ~/.ssh/$KEY_NAME.pem -o StrictHostKeyChecking=no ubuntu@$PUBLIC_IP "bash /tmp/setup-instance.sh"
+ssh -i $KEY_PATH -o StrictHostKeyChecking=no ubuntu@$PUBLIC_IP "bash /tmp/setup-instance.sh"
 
 # Final output
 echo ""

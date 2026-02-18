@@ -2,7 +2,7 @@
 # Optimized for AWS Free Tier (1 vCPU, 1GB RAM)
 
 dataset:
-  n_customers: 30000
+  n_customers: 10000  # Reduced for faster generation on Free Tier
   output_path: "data/processed/behavioral_features.csv"
   seed: 42
 
@@ -17,7 +17,7 @@ model:
   objective: "binary:logistic"
   eval_metric: ["auc", "logloss"]
   early_stopping_rounds: 30
-  num_boost_round: 300
+  num_boost_round: 200  # Reduced for faster training
   nthread: 1  # Single thread for Free Tier
   
   # Base parameters
@@ -34,7 +34,7 @@ model:
 hyperparameter_tuning:
   enabled: true
   method: "random_search"
-  n_trials: 10
+  n_trials: 5  # Reduced for faster tuning
   
   search_space:
     max_depth: [3, 4, 5, 6, 7]
@@ -54,7 +54,7 @@ threshold_optimization:
 explainability:
   enabled: true
   method: "shap"
-  sample_size: 1000  # Max samples for SHAP
+  sample_size: 500  # Reduced for Free Tier
   top_features: 10
 
 evaluation:

@@ -1,77 +1,98 @@
-# Training Configuration
-# Optimized for AWS Free Tier (1 vCPU, 1GB RAM)
-
 dataset:
-  n_customers: 10000  # Reduced for faster generation on Free Tier
-  output_path: "data/processed/behavioral_features.csv"
+  n_customers: 10000
+  output_path: data/processed/behavioral_features_v2.csv
   seed: 42
-
-split:
-  test_size: 0.15
-  val_size: 0.15
-  stratify: true
-  random_state: 42
-
-model:
-  type: "xgboost"  # or "lightgbm"
-  objective: "binary:logistic"
-  eval_metric: ["auc", "logloss"]
-  early_stopping_rounds: 30
-  num_boost_round: 200  # Reduced for faster training
-  nthread: 1  # Single thread for Free Tier
-  
-  # Base parameters
-  base_params:
-    max_depth: 5
-    learning_rate: 0.05
-    subsample: 0.8
-    colsample_bytree: 0.8
-    min_child_weight: 3
-    gamma: 0.1
-    reg_alpha: 0.1
-    reg_lambda: 1.0
-
-hyperparameter_tuning:
-  enabled: true
-  method: "random_search"
-  n_trials: 5  # Reduced for faster tuning
-  
-  search_space:
-    max_depth: [3, 4, 5, 6, 7]
-    learning_rate: [0.01, 0.03, 0.05, 0.07, 0.1]
-    subsample: [0.6, 0.7, 0.8, 0.9]
-    colsample_bytree: [0.6, 0.7, 0.8, 0.9]
-    min_child_weight: [1, 3, 5, 7]
-    gamma: [0, 0.1, 0.2, 0.3]
-    reg_alpha: [0, 0.1, 0.5, 1.0]
-    reg_lambda: [0.5, 1.0, 2.0]
-
-threshold_optimization:
-  method: "pr_curve"  # Precision-Recall curve
-  objective: "f1"  # or "recall" for early intervention priority
-  recall_priority: 0.7  # Minimum recall target
-
-explainability:
-  enabled: true
-  method: "shap"
-  sample_size: 500  # Reduced for Free Tier
-  top_features: 10
-
 evaluation:
   metrics:
-    - "roc_auc"
-    - "pr_auc"
-    - "precision"
-    - "recall"
-    - "f1"
-    - "confusion_matrix"
-  
+  - roc_auc
+  - pr_auc
+  - precision
+  - recall
+  - f1
+  - confusion_matrix
   thresholds_to_compare:
-    - 0.5  # Default
-    - "optimized"  # From PR curve
-
+  - 0.5
+  - optimized
+explainability:
+  enabled: true
+  method: shap
+  sample_size: 500
+  top_features: 10
+hyperparameter_tuning:
+  enabled: true
+  method: random_search
+  n_trials: 5
+  search_space:
+    colsample_bytree:
+    - 0.6
+    - 0.7
+    - 0.8
+    - 0.9
+    gamma:
+    - 0
+    - 0.1
+    - 0.2
+    - 0.3
+    learning_rate:
+    - 0.01
+    - 0.03
+    - 0.05
+    - 0.07
+    - 0.1
+    max_depth:
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    min_child_weight:
+    - 1
+    - 3
+    - 5
+    - 7
+    reg_alpha:
+    - 0
+    - 0.1
+    - 0.5
+    - 1.0
+    reg_lambda:
+    - 0.5
+    - 1.0
+    - 2.0
+    subsample:
+    - 0.6
+    - 0.7
+    - 0.8
+    - 0.9
+model:
+  base_params:
+    colsample_bytree: 0.8
+    gamma: 0.1
+    learning_rate: 0.05
+    max_depth: 5
+    min_child_weight: 3
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+    subsample: 0.8
+  early_stopping_rounds: 30
+  eval_metric:
+  - auc
+  - logloss
+  nthread: 1
+  num_boost_round: 200
+  objective: binary:logistic
+  type: xgboost
 output:
-  model_path: "data/models/production/model.json"
-  metrics_path: "data/models/evaluation/metrics.json"
-  shap_path: "data/models/evaluation/shap_values.json"
-  threshold_config_path: "data/models/production/threshold_config.json"
+  metrics_path: data/models/evaluation/metrics.json
+  model_path: data/models/production/model.json
+  shap_path: data/models/evaluation/shap_values.json
+  threshold_config_path: data/models/production/threshold_config.json
+split:
+  random_state: 42
+  stratify: true
+  test_size: 0.15
+  val_size: 0.15
+threshold_optimization:
+  method: pr_curve
+  objective: f1
+  recall_priority: 0.7

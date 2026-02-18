@@ -303,16 +303,30 @@ class ModelTrainer:
         model.save_model(str(model_path))
         print(f"✅ Model: {model_path}")
         
+        # Convert numpy types to Python native types for JSON serialization
+        def convert_to_native(obj):
+            if isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.floating):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {key: convert_to_native(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_to_native(item) for item in obj]
+            return obj
+        
         # Save metrics
         metrics = {
-            'evaluation': results,
-            'training_params': best_params,
-            'shap_analysis': shap_results,
+            'evaluation': convert_to_native(results),
+            'training_params': convert_to_native(best_params),
+            'shap_analysis': convert_to_native(shap_results),
             'dataset_info': {
-                'n_samples': len(pd.read_csv(self.config['dataset']['output_path'])),
-                'n_features': len(self.feature_names),
-                'positive_rate': results['optimized']['confusion_matrix']['tp'] + 
-                                results['optimized']['confusion_matrix']['fn']
+                'n_samples': int(len(pd.read_csv(self.config['dataset']['output_path']))),
+                'n_features': int(len(self.feature_names)),
+                'positive_rate': int(results['optimized']['confusion_matrix']['tp'] + 
+                                results['optimized']['confusion_matrix']['fn'])
             }
         }
         
@@ -324,7 +338,7 @@ class ModelTrainer:
         
         # Save threshold config
         threshold_config = {
-            'threshold': self.best_threshold,
+            'threshold': float(self.best_threshold),
             'model_path': str(model_path)
         }
         

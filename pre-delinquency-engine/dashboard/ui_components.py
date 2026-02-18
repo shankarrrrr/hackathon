@@ -212,6 +212,45 @@ def apply_custom_css():
             margin: 1.5rem 0;
             border-color: #E5E7EB;
         }
+        
+        /* Radio button navigation styling */
+        section[data-testid="stSidebar"] .stRadio > div {
+            gap: 0.5rem;
+        }
+        
+        section[data-testid="stSidebar"] .stRadio > div > label {
+            background-color: transparent;
+            padding: 0.625rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #6B7280;
+        }
+        
+        section[data-testid="stSidebar"] .stRadio > div > label:hover {
+            background-color: #F3F4F6;
+            color: #111827;
+        }
+        
+        section[data-testid="stSidebar"] .stRadio > div > label[data-checked="true"] {
+            background-color: #EFF6FF;
+            color: #1E40AF;
+            border: 1px solid #BFDBFE;
+            font-weight: 600;
+        }
+        
+        /* Hide radio button circles */
+        section[data-testid="stSidebar"] .stRadio > div > label > div:first-child {
+            display: none;
+        }
+        
+        /* Adjust text positioning */
+        section[data-testid="stSidebar"] .stRadio > div > label > div:last-child {
+            padding-left: 0;
+        }
         </style>
     """, unsafe_allow_html=True)
 

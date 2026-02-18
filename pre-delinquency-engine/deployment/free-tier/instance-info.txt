@@ -1,6 +1,0 @@
-Instance ID: i-012a4d1efece1bbaa
-Public IP: 13.127.144.56
-Public DNS: ec2-13-127-144-56.ap-south-1.compute.amazonaws.com
-Private IP: 172.31.41.170
-Region: ap-south-1
-Key File: pre-delinquency-key.pem

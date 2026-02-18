@@ -86,7 +86,7 @@ st.sidebar.markdown("---")
 
 # Page selector with improved styling
 st.sidebar.markdown("<h3 style='font-size: 0.6875rem; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem;'>📍 NAVIGATION</h3>", unsafe_allow_html=True)
-page = st.sidebar.selectbox(
+page = st.sidebar.radio(
     "Navigate to:",
     [
         "Risk Overview",
@@ -504,6 +504,8 @@ elif page == "Customer Deep Dive":
         )
     
     with col2:
+        # Add spacing to align button with input field
+        st.markdown("<div style='margin-top: 1.85rem;'></div>", unsafe_allow_html=True)
         analyze_button = st.button("🔍 Analyze", type="primary", use_container_width=True)
     
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)

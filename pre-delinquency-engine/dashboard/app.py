@@ -2100,15 +2100,6 @@ elif page == "Model Performance":
     
     except Exception as e:
         st.error(f"Error loading model metrics: {str(e)}")
-        """)
-    
-    except json.JSONDecodeError as e:
-        st.error(f"❌ Error parsing metrics file: {str(e)}")
-        st.info("Please ensure the metrics.json file contains valid JSON data.")
-    
-    except Exception as e:
-        st.error(f"❌ Error loading model metrics: {str(e)}")
-        st.exception(e)
 
 # ============================================================================
 # INTERVENTIONS TRACKER PAGE

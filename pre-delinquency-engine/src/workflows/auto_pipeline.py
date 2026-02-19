@@ -67,14 +67,16 @@ def load_to_database(df):
     inserted = 0
     for _, row in df.iterrows():
         try:
+            account_age_days = int(row['account_age_months'] * 30)  # Convert months to days
             cur.execute("""
                 INSERT INTO customers 
-                (monthly_income, account_age_months, salary_day, income_bracket, account_type)
-                VALUES (%s, %s, %s, %s, %s)
+                (monthly_income, account_age_months, account_age_days, salary_day, income_bracket, account_type)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
             """, (
                 float(row['monthly_income']),
                 int(row['account_age_months']),
+                account_age_days,
                 int(row['observation_weeks'] % 28 + 1),  # Use as salary day
                 row['segment'],
                 'savings'
@@ -82,6 +84,8 @@ def load_to_database(df):
             inserted += 1
         except Exception as e:
             log(f"⚠️  Skip customer: {e}")
+            conn.rollback()  # Rollback failed transaction
+            continue
     
     conn.commit()
     

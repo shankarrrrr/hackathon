@@ -93,7 +93,8 @@ page = st.sidebar.radio(
         "Customer Deep Dive",
         "Real-time Monitor",
         "Model Performance",
-        "Interventions Tracker"
+        "Interventions Tracker",
+        "Data Management"
     ],
     label_visibility="collapsed"
 )
@@ -301,7 +302,8 @@ page_descriptions = {
     "Customer Deep Dive": "Analyze individual customer risk profiles with AI-powered explanations.",
     "Real-time Monitor": "Track risk scores updating in real-time with automatic refresh capability.",
     "Model Performance": "View model evaluation metrics and performance diagnostics.",
-    "Interventions Tracker": "Track intervention outcomes and measure effectiveness over time."
+    "Interventions Tracker": "Track intervention outcomes and measure effectiveness over time.",
+    "Data Management": "Generate synthetic data and retrain models with automated workflows."
 }
 
 st.markdown(f"<p style='color: #000000; font-size: 15px; margin-bottom: 2rem;'>{page_descriptions.get(page, '')}</p>", unsafe_allow_html=True)
@@ -311,44 +313,6 @@ st.markdown(f"<p style='color: #000000; font-size: 15px; margin-bottom: 2rem;'>{
 # ============================================================================
 
 if page == "Risk Overview":
-    # Automated Pipeline Button
-    st.markdown("### 🔄 Data Management")
-    col1, col2, col3 = st.columns([2, 1, 1])
-    
-    with col1:
-        if st.button("🚀 Generate New Customers & Retrain", type="primary", use_container_width=True):
-            with st.spinner("Running automated pipeline..."):
-                import subprocess
-                import json
-                
-                try:
-                    result = subprocess.run(
-                        ["python3", "src/workflows/auto_pipeline.py", "100"],
-                        capture_output=True,
-                        text=True,
-                        timeout=120
-                    )
-                    
-                    if result.returncode == 0:
-                        output = json.loads(result.stdout.split('\n')[-2])
-                        st.success(f"✅ Pipeline Complete! Added {output['new_customers']} customers, scored {output['risk_scores']}")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ Pipeline failed: {result.stderr}")
-                except subprocess.TimeoutExpired:
-                    st.warning("⚠️ Pipeline is taking longer than expected. Check logs.")
-                except Exception as e:
-                    st.error(f"❌ Error: {e}")
-    
-    with col2:
-        st.metric("Pipeline Status", "Ready", delta=None)
-    
-    with col3:
-        last_run = "Never"
-        st.metric("Last Run", last_run)
-    
-    st.markdown("---")
-    
     # Load latest risk scores
     df = load_latest_risk_scores()
     
@@ -1098,3 +1062,121 @@ elif page == "Interventions Tracker":
 
 # Render footer using UI component
 render_footer()
+
+
+# ============================================================================
+# DATA MANAGEMENT PAGE
+# ============================================================================
+
+elif page == "Data Management":
+    st.markdown("### 🔄 Automated Data Pipeline")
+    st.markdown("Generate synthetic customers and retrain models with one click.")
+    
+    st.markdown("---")
+    
+    # Pipeline controls
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        n_customers = st.slider("Number of customers to generate", 50, 500, 100, 50)
+        st.info(f"💡 Will generate {n_customers} synthetic customers with realistic behavioral patterns")
+    
+    with col2:
+        st.metric("Pipeline Status", "Ready ✅")
+    
+    st.markdown("---")
+    
+    # Run pipeline button
+    if st.button("🚀 Run Automated Pipeline", type="primary", use_container_width=True):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        try:
+            import subprocess
+            import json
+            
+            status_text.text("⏳ Starting pipeline...")
+            progress_bar.progress(10)
+            
+            result = subprocess.run(
+                ["python3", "src/workflows/auto_pipeline.py", str(n_customers)],
+                capture_output=True,
+                text=True,
+                timeout=180,
+                cwd="."
+            )
+            
+            progress_bar.progress(90)
+            
+            if result.returncode == 0:
+                # Parse JSON from stdout
+                try:
+                    output = json.loads(result.stdout)
+                    progress_bar.progress(100)
+                    status_text.empty()
+                    
+                    if output.get('success'):
+                        st.success("✅ Pipeline completed successfully!")
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("New Customers", output.get('new_customers', 0))
+                        with col2:
+                            st.metric("Risk Scores Generated", output.get('risk_scores', 0))
+                        with col3:
+                            st.metric("Timestamp", output.get('timestamp', 'N/A')[:19])
+                        
+                        st.balloons()
+                        
+                        if st.button("🔄 Refresh Dashboard"):
+                            st.rerun()
+                    else:
+                        st.error(f"❌ Pipeline failed: {output.get('error', 'Unknown error')}")
+                        with st.expander("View Error Details"):
+                            st.code(result.stderr)
+                
+                except json.JSONDecodeError as e:
+                    st.error(f"❌ Failed to parse pipeline output")
+                    with st.expander("View Raw Output"):
+                        st.code(result.stdout)
+                        st.code(result.stderr)
+            else:
+                progress_bar.progress(100)
+                status_text.empty()
+                st.error(f"❌ Pipeline failed with exit code {result.returncode}")
+                with st.expander("View Error Details"):
+                    st.code(result.stderr)
+        
+        except subprocess.TimeoutExpired:
+            progress_bar.progress(100)
+            status_text.empty()
+            st.warning("⚠️ Pipeline timeout (>3 minutes). It may still be running in the background.")
+            st.info("Check the logs: `tail -f dashboard.log`")
+        
+        except Exception as e:
+            progress_bar.progress(100)
+            status_text.empty()
+            st.error(f"❌ Unexpected error: {e}")
+            import traceback
+            with st.expander("View Traceback"):
+                st.code(traceback.format_exc())
+    
+    st.markdown("---")
+    
+    # Pipeline information
+    st.markdown("### 📋 Pipeline Steps")
+    
+    steps = [
+        ("1️⃣ Generate Data", "Create synthetic customers with realistic behavioral patterns"),
+        ("2️⃣ Load to Database", "Insert new customers into PostgreSQL"),
+        ("3️⃣ Generate Scores", "Calculate risk scores using the trained model"),
+        ("4️⃣ Update Dashboard", "Refresh metrics and visualizations")
+    ]
+    
+    for step, description in steps:
+        with st.container():
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                st.markdown(f"**{step}**")
+            with col2:
+                st.markdown(description)

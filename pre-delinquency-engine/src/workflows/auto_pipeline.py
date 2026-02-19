@@ -231,4 +231,8 @@ if __name__ == '__main__':
     import sys
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 100
     result = run_pipeline(n)
-    print(json.dumps(result, indent=2))
+    
+    # Print only JSON, no other output
+    import sys
+    sys.stdout.write(json.dumps(result))
+    sys.stdout.flush()

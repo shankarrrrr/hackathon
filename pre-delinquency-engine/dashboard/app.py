@@ -157,7 +157,7 @@ def load_latest_risk_scores():
         
         query = text("""
             SELECT DISTINCT ON (customer_id)
-                customer_id,
+                customer_id::text as customer_id,
                 risk_score,
                 risk_level,
                 score_date,
@@ -221,7 +221,7 @@ def load_rising_risk_customers():
                 ORDER BY customer_id, score_date DESC
             )
             SELECT 
-                customer_id,
+                customer_id::text as customer_id,
                 risk_score,
                 risk_level,
                 top_feature_1,
@@ -265,7 +265,7 @@ def load_recent_risk_scores():
         
         query = text("""
             SELECT 
-                customer_id,
+                customer_id::text as customer_id,
                 risk_score,
                 risk_level,
                 top_feature_1,
@@ -665,13 +665,6 @@ elif page == "Real-time Monitor":
         st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Real-time visualization of risk score updates in the last hour</p>", unsafe_allow_html=True)
         
         try:
-            # Debug: Check data types and content
-            st.write(f"Debug - DataFrame shape: {df.shape}")
-            st.write(f"Debug - Columns: {df.columns.tolist()}")
-            st.write(f"Debug - score_date dtype: {df['score_date'].dtype}")
-            st.write(f"Debug - First few rows:")
-            st.write(df.head())
-            
             # Get consistent color mapping for risk levels
             color_map = get_risk_level_color_map()
             
@@ -695,8 +688,6 @@ elif page == "Real-time Monitor":
             st.warning(f"⚠️ Chart could not be rendered: {str(e)}")
             st.dataframe(df[['score_date', 'customer_id', 'risk_score', 'risk_level']])
             st.info("The dashboard will continue operating. Chart rendering issue logged.")
-            with st.expander("View Error Details"):
-                st.exception(e)
         
         st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
         

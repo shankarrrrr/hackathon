@@ -1,184 +1,93 @@
 {
-  "evaluation": {
-    "default_0.5": {
-      "threshold": 0.5,
-      "roc_auc": 0.6526389664399357,
-      "pr_auc": 0.4646184197957828,
-      "precision": 0.4367875647668394,
-      "recall": 0.5837950138504155,
-      "f1": 0.49970361588618856,
-      "confusion_matrix": {
-        "tn": 1969,
-        "fp": 1087,
-        "fn": 601,
-        "tp": 843
-      }
+  "ensemble_auc": 0.6371587377480278,
+  "optimal_threshold": 0.17077197163995175,
+  "ensemble_weights": {
+    "xgboost": 0.2,
+    "lightgbm": 0.5000000000000001,
+    "catboost": 0.29999999999999993
+  },
+  "feature_count": 104,
+  "training_date": "2026-02-19T11:39:13.726378",
+  "top_features": [
+    {
+      "feature": "cash_hoarding_flag_std",
+      "importance": 336.36260986328125
     },
-    "optimized": {
-      "threshold": 0.4393978714942932,
-      "roc_auc": 0.6526389664399357,
-      "pr_auc": 0.4646184197957828,
-      "precision": 0.3902002861230329,
-      "recall": 0.7555401662049861,
-      "f1": 0.514622641509434,
-      "confusion_matrix": {
-        "tn": 1351,
-        "fp": 1705,
-        "fn": 353,
-        "tp": 1091
-      }
+    {
+      "feature": "atm_withdrawal_spike_min",
+      "importance": 332.7141418457031
+    },
+    {
+      "feature": "gambling_txns_max",
+      "importance": 319.4500427246094
+    },
+    {
+      "feature": "gambling_txns_std",
+      "importance": 316.5819091796875
+    },
+    {
+      "feature": "cash_hoarding_flag_max",
+      "importance": 312.716796875
+    },
+    {
+      "feature": "lending_app_transfers_mean",
+      "importance": 253.8749237060547
+    },
+    {
+      "feature": "atm_withdrawal_spike_max",
+      "importance": 210.03128051757812
+    },
+    {
+      "feature": "lending_app_transfers_std",
+      "importance": 206.2227020263672
+    },
+    {
+      "feature": "overall_stress_score",
+      "importance": 193.81906127929688
+    },
+    {
+      "feature": "lending_app_transfers_max",
+      "importance": 191.50119018554688
+    },
+    {
+      "feature": "cash_hoarding_flag_mean",
+      "importance": 164.8238525390625
+    },
+    {
+      "feature": "lending_app_x_gambling",
+      "importance": 139.6291046142578
+    },
+    {
+      "feature": "gambling_txns_trend",
+      "importance": 135.19847106933594
+    },
+    {
+      "feature": "gambling_txns_mean",
+      "importance": 132.01126098632812
+    },
+    {
+      "feature": "utility_delay_days_max",
+      "importance": 115.98971557617188
+    },
+    {
+      "feature": "emi_delay_days_max",
+      "importance": 95.01188659667969
+    },
+    {
+      "feature": "salary_delay_x_failed_autodebits",
+      "importance": 85.8722152709961
+    },
+    {
+      "feature": "cash_hoarding_flag_trend",
+      "importance": 79.28154754638672
+    },
+    {
+      "feature": "utility_delay_days_consec_high",
+      "importance": 78.91094207763672
+    },
+    {
+      "feature": "salary_delay_x_failed_autodebits_v2",
+      "importance": 77.66414642333984
     }
-  },
-  "training_params": {
-    "objective": "binary:logistic",
-    "eval_metric": [
-      "auc",
-      "logloss"
-    ],
-    "scale_pos_weight": 2.115264797507788,
-    "seed": 42,
-    "nthread": 1,
-    "max_depth": 3,
-    "learning_rate": 0.07,
-    "subsample": 0.9,
-    "colsample_bytree": 0.8,
-    "min_child_weight": 1,
-    "gamma": 0.0,
-    "reg_alpha": 1.0,
-    "reg_lambda": 0.5
-  },
-  "shap_analysis": {
-    "feature_importance": [
-      {
-        "feature": "max_salary_delay",
-        "importance": 0.18000198900699615
-      },
-      {
-        "feature": "total_failed_autodebits",
-        "importance": 0.16254010796546936
-      },
-      {
-        "feature": "avg_salary_delay",
-        "importance": 0.1261473149061203
-      },
-      {
-        "feature": "total_lending_app_txns",
-        "importance": 0.10745018720626831
-      },
-      {
-        "feature": "avg_utility_delay",
-        "importance": 0.06304959207773209
-      },
-      {
-        "feature": "min_liquidity_ratio",
-        "importance": 0.028132442384958267
-      },
-      {
-        "feature": "avg_liquidity_ratio",
-        "importance": 0.026537997648119926
-      },
-      {
-        "feature": "payment_stress_trend",
-        "importance": 0.0239778570830822
-      },
-      {
-        "feature": "account_age_months",
-        "importance": 0.015915172174572945
-      },
-      {
-        "feature": "avg_cc_min_payment",
-        "importance": 0.013581988401710987
-      },
-      {
-        "feature": "min_cc_min_payment",
-        "importance": 0.012820646166801453
-      },
-      {
-        "feature": "max_credit_util_change",
-        "importance": 0.012594405561685562
-      },
-      {
-        "feature": "avg_multi_account_stress",
-        "importance": 0.012027129530906677
-      },
-      {
-        "feature": "monthly_income",
-        "importance": 0.011256169527769089
-      },
-      {
-        "feature": "spending_stress_trend",
-        "importance": 0.010456685908138752
-      },
-      {
-        "feature": "avg_discretionary_drop",
-        "importance": 0.009775003418326378
-      },
-      {
-        "feature": "savings_volatility",
-        "importance": 0.00876699760556221
-      },
-      {
-        "feature": "max_emi_delay",
-        "importance": 0.006719301454722881
-      },
-      {
-        "feature": "avg_credit_util_change",
-        "importance": 0.006468534003943205
-      },
-      {
-        "feature": "max_multi_account_stress",
-        "importance": 0.006354800891131163
-      },
-      {
-        "feature": "max_discretionary_drop",
-        "importance": 0.0058565083891153336
-      },
-      {
-        "feature": "avg_channel_anomaly",
-        "importance": 0.005590012297034264
-      },
-      {
-        "feature": "total_atm_spikes",
-        "importance": 0.005408750381320715
-      },
-      {
-        "feature": "avg_salary_drop",
-        "importance": 0.004931652452796698
-      },
-      {
-        "feature": "max_channel_anomaly",
-        "importance": 0.004856814164668322
-      },
-      {
-        "feature": "min_salary_drop",
-        "importance": 0.0038457398768514395
-      },
-      {
-        "feature": "salary_delay_trend",
-        "importance": 0.0037917159497737885
-      },
-      {
-        "feature": "total_gambling_txns",
-        "importance": 0.0036753525491803885
-      },
-      {
-        "feature": "avg_emi_delay",
-        "importance": 0.0034667232539504766
-      },
-      {
-        "feature": "max_utility_delay",
-        "importance": 0.002894441597163677
-      },
-      {
-        "feature": "cash_hoarding_weeks",
-        "importance": 0.0004729420761577785
-      }
-    ],
-    "sample_size": 500
-  },
-  "dataset_info": {
-    "n_samples": 30000,
-    "n_features": 31,
-    "positive_rate": 1444
-  }
+  ]
 }

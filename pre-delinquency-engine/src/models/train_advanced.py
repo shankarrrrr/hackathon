@@ -326,6 +326,7 @@ class AdvancedModelTrainer:
                 'min_child_samples': np.random.choice([10, 20, 30, 50]),
                 'reg_alpha': np.random.uniform(0, 2),
                 'reg_lambda': np.random.uniform(0.5, 3),
+                'feature_pre_filter': False,  # Fix for min_data_in_leaf error
                 'verbose': -1
             }
             
@@ -405,6 +406,7 @@ class AdvancedModelTrainer:
                     best_auc = auc
                     best_weights = {'xgboost': w1, 'lightgbm': w2, 'catboost': w3}
         
+        self.best_ensemble_auc = best_auc  # Store for saving
         print(f"✅ Best ensemble AUC: {best_auc:.4f}")
         print(f"   Weights: {best_weights}")
         
@@ -476,6 +478,72 @@ class AdvancedModelTrainer:
         
         return cv_scores
     
+    def save_models(self, ensemble_weights: Dict):
+        """Save trained models and metadata"""
+        print("\n💾 Saving models...")
+        
+        output_dir = Path(self.config['output']['model_path']).parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save XGBoost model (primary)
+        model_path = self.config['output']['model_path']
+        self.models['xgboost'].save_model(model_path)
+        print(f"  ✓ XGBoost: {model_path}")
+        
+        # Get feature importance from XGBoost
+        importance_dict = self.models['xgboost'].get_score(importance_type='gain')
+        feature_importance = sorted(
+            [(k, float(v)) for k, v in importance_dict.items()],
+            key=lambda x: x[1],
+            reverse=True
+        )[:20]  # Top 20 features
+        
+        # Save threshold config
+        threshold_config = {
+            'optimal_threshold': float(self.best_threshold),
+            'thresholds': {
+                'CRITICAL': 0.7,
+                'HIGH': 0.5,
+                'MEDIUM': 0.3,
+                'LOW': 0.0
+            }
+        }
+        threshold_path = self.config['output']['threshold_config_path']
+        with open(threshold_path, 'w') as f:
+            json.dump(threshold_config, f, indent=2)
+        print(f"  ✓ Thresholds: {threshold_path}")
+        
+        # Save metrics with feature importance
+        metrics = {
+            'ensemble_auc': float(self.best_ensemble_auc),
+            'optimal_threshold': float(self.best_threshold),
+            'ensemble_weights': {k: float(v) for k, v in ensemble_weights.items()},
+            'feature_count': len(self.feature_names),
+            'training_date': pd.Timestamp.now().isoformat(),
+            'top_features': [{'feature': f, 'importance': float(i)} for f, i in feature_importance]
+        }
+        metrics_path = self.config['output']['metrics_path']
+        Path(metrics_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(metrics_path, 'w') as f:
+            json.dump(metrics, f, indent=2)
+        print(f"  ✓ Metrics: {metrics_path}")
+        
+        # Save feature names
+        feature_path = str(Path(model_path).parent / 'feature_names.json')
+        with open(feature_path, 'w') as f:
+            json.dump(self.feature_names, f, indent=2)
+        print(f"  ✓ Features: {feature_path}")
+        
+        # Save feature importance separately
+        importance_path = str(Path(metrics_path).parent / 'feature_importance.json')
+        with open(importance_path, 'w') as f:
+            json.dump({
+                'method': 'xgboost_gain',
+                'top_20_features': [{'feature': f, 'importance': i} for f, i in feature_importance],
+                'total_features': len(self.feature_names)
+            }, f, indent=2)
+        print(f"  ✓ Feature Importance: {importance_path}")
+    
     def run(self):
         """Execute advanced training pipeline"""
         print("\n" + "="*70)
@@ -501,6 +569,9 @@ class AdvancedModelTrainer:
         
         # Optimize threshold
         self.best_threshold = self.optimize_threshold_advanced(splits, ensemble_weights)
+        
+        # Save everything
+        self.save_models(ensemble_weights)
         
         print("\n" + "="*70)
         print("✅ ADVANCED TRAINING COMPLETE!")

@@ -526,16 +526,28 @@ elif page == "Customer Deep Dive":
         # API prediction call (Task 5.2)
         try:
             import requests
+            import json as json_lib
             
             with st.spinner("Analyzing customer risk profile..."):
+                # Log request
+                st.write(f"🔍 Calling API: {API_URL}/predict")
+                st.write(f"📤 Request payload: {{'customer_id': '{customer_id}'}}")
+                
                 response = requests.post(
                     f"{API_URL}/predict",
                     json={"customer_id": customer_id},
                     timeout=10
                 )
                 
+                # Log response
+                st.write(f"📥 Response status: {response.status_code}")
+                
                 if response.status_code == 200:
                     result = response.json()
+                    
+                    # Log full response for debugging
+                    with st.expander("🔍 View API Response (Debug)"):
+                        st.json(result)
                     
                     # Extract data from response
                     risk_score = result.get('risk_score', 0)
@@ -543,6 +555,10 @@ elif page == "Customer Deep Dive":
                     explanation = result.get('explanation', {})
                     explanation_text = explanation.get('explanation_text', 'No explanation available')
                     top_drivers = explanation.get('top_drivers', [])
+                    
+                    st.write(f"📊 Extracted - Risk Score: {risk_score}, Level: {risk_level}")
+                    st.write(f"💡 Explanation: {explanation_text}")
+                    st.write(f"📈 Top Drivers Count: {len(top_drivers)}")
                     
                     st.success("✅ Analysis complete!")
                     st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)

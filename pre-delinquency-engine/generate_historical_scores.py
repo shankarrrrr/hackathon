@@ -122,6 +122,7 @@ try:
                     customer_id,
                     risk_score,
                     risk_level,
+                    score_date,
                     LAG(risk_score) OVER (PARTITION BY customer_id ORDER BY score_date) as prev_risk_score
                 FROM risk_scores
             ),
@@ -130,7 +131,8 @@ try:
                     customer_id,
                     risk_score,
                     risk_level,
-                    prev_risk_score
+                    prev_risk_score,
+                    score_date
                 FROM risk_trends
                 ORDER BY customer_id, score_date DESC
             )

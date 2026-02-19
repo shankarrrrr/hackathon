@@ -849,14 +849,8 @@ def render_rising_risk_panel_enhanced(df):
         return
     
     # Display panel header
-    st.markdown("""
-        <div style='font-size: 1.25rem; font-weight: 700; color: #1F2937; margin-bottom: 1rem;'>
-            ⚠️ Rising Risk Customers
-        </div>
-        <p style='color: #6B7280; font-size: 14px; margin-bottom: 1.5rem;'>
-            Early warning signals for customers with rapidly increasing risk
-        </p>
-    """, unsafe_allow_html=True)
+    st.markdown("### ⚠️ Rising Risk Customers")
+    st.caption("Early warning signals for customers with rapidly increasing risk")
     
     # Helper function to get early warning signal
     def get_early_warning_signal(feature_name):
@@ -880,7 +874,7 @@ def render_rising_risk_panel_enhanced(df):
         else:
             return ("", "")
     
-    # Display each rising risk customer
+    # Display each rising risk customer in a container
     for idx, row in df.iterrows():
         customer_id = row['customer_id']
         risk_score = row['risk_score']
@@ -894,108 +888,46 @@ def render_rising_risk_panel_enhanced(df):
         # Get early warning signal
         signal_emoji, signal_label = get_early_warning_signal(top_feature)
         
-        # Get risk level color
-        risk_color = "#DC2626" if risk_level == "CRITICAL" else "#F59E0B"
-        
-        # Build the card HTML
-        acceleration_badge = ""
-        if is_accelerating:
-            acceleration_badge = """
-                <span style='background: #FEE2E2; color: #991B1B; padding: 0.25rem 0.5rem; 
-                             border-radius: 4px; font-size: 0.75rem; font-weight: 600; 
-                             margin-left: 0.5rem;'>
-                    ⚡ RAPID ACCELERATION
-                </span>
-            """
-        
-        warning_signal = ""
-        if signal_emoji and signal_label:
-            warning_signal = f"""
-                <div style='display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;'>
-                    <span style='font-size: 1.25rem;'>{signal_emoji}</span>
-                    <span style='color: #DC2626; font-weight: 600; font-size: 0.875rem;'>
-                        {signal_label}
-                    </span>
-                </div>
-            """
-        
-        # Format risk change with sign
-        risk_change_str = f"+{risk_change:.3f}" if risk_change >= 0 else f"{risk_change:.3f}"
-        risk_change_color = "#DC2626" if risk_change > 0.1 else "#F59E0B"
-        
-        st.markdown(f"""
-            <div style='background: white; padding: 1rem; border-radius: 8px; 
-                        border: 1px solid #E5E7EB; margin-bottom: 1rem;
-                        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);'>
-                <div style='display: flex; justify-content: space-between; align-items: start;'>
-                    <div style='flex: 1;'>
-                        <div style='display: flex; align-items: center; margin-bottom: 0.5rem;'>
-                            <span style='font-weight: 600; color: #1F2937; font-size: 0.875rem;'>
-                                Customer: {customer_id[:8]}...
-                            </span>
-                            <span style='background: {risk_color}; color: white; 
-                                         padding: 0.125rem 0.5rem; border-radius: 4px; 
-                                         font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;'>
-                                {risk_level}
-                            </span>
-                            {acceleration_badge}
-                        </div>
-                        <div style='color: #6B7280; font-size: 0.875rem; margin-bottom: 0.25rem;'>
-                            Risk Score: <span style='font-weight: 600; color: #1F2937;'>{risk_score:.2%}</span>
-                        </div>
-                        <div style='color: #6B7280; font-size: 0.875rem;'>
-                            Primary Driver: <span style='font-weight: 600; color: #1F2937;'>{top_feature}</span>
-                        </div>
-                        {warning_signal}
-                    </div>
-                    <div style='text-align: right;'>
-                        <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
-                            Risk Change
-                        </div>
-                        <div style='font-size: 1.25rem; font-weight: 700; color: {risk_change_color};'>
-                            {risk_change_str}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        # Create container for each customer
+        with st.container():
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                # Customer ID and badges
+                badge_text = f"{risk_level}"
+                if is_accelerating:
+                    badge_text += " ⚡ RAPID ACCELERATION"
+                
+                st.markdown(f"**Customer:** `{customer_id[:8]}...` :red[{badge_text}]")
+                st.caption(f"Risk Score: **{risk_score:.2%}** | Primary Driver: **{top_feature}**")
+                
+                if signal_emoji and signal_label:
+                    st.markdown(f"{signal_emoji} :red[**{signal_label}**]")
+            
+            with col2:
+                st.metric(
+                    label="Risk Change",
+                    value=f"{risk_change:+.3f}",
+                    delta=None
+                )
+            
+            st.divider()
     
     # Display summary statistics
     total_customers = len(df)
     accelerating_count = len(df[df['risk_change'] > 0.1])
     avg_risk_change = df['risk_change'].mean()
     
-    st.markdown(f"""
-        <div style='background: #F9FAFB; padding: 1rem; border-radius: 8px; 
-                    margin-top: 1rem; border: 1px solid #E5E7EB;'>
-            <div style='display: flex; justify-content: space-around; text-align: center;'>
-                <div>
-                    <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
-                        Total Rising Risk
-                    </div>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #1F2937;'>
-                        {total_customers}
-                    </div>
-                </div>
-                <div>
-                    <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
-                        Rapid Acceleration
-                    </div>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #DC2626;'>
-                        {accelerating_count}
-                    </div>
-                </div>
-                <div>
-                    <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
-                        Avg Risk Change
-                    </div>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #F59E0B;'>
-                        +{avg_risk_change:.3f}
-                    </div>
-                </div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Total Rising Risk", total_customers)
+    
+    with col2:
+        st.metric("Rapid Acceleration", accelerating_count)
+    
+    with col3:
+        st.metric("Avg Risk Change", f"+{avg_risk_change:.3f}")
 
 
 def render_risk_driver_explainability(drivers_df):

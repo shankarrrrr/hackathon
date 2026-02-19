@@ -88,11 +88,31 @@ def main():
         
         results[risk_level] += 1
         
-        # Simple top features
+        # Calculate feature impacts (contribution to risk score)
+        # Higher values = more risk contribution
+        income_impact = 0.0
+        if monthly_income < 15000:
+            income_impact = 0.25
+        elif monthly_income < 30000:
+            income_impact = 0.15
+        elif monthly_income < 50000:
+            income_impact = 0.05
+        
+        age_impact = 0.0
+        if account_age_months < 12:
+            age_impact = 0.20
+        elif account_age_months < 24:
+            age_impact = 0.10
+        elif account_age_months < 48:
+            age_impact = 0.05
+        
+        bracket_impact = 0.10 if income_bracket == 'low' else 0.0
+        
+        # Top features with actual impact values
         top_features = [
-            {"feature": "monthly_income", "value": float(monthly_income / 100000)},
-            {"feature": "account_age_months", "value": float(account_age_months / 100)},
-            {"feature": "income_bracket", "value": 0.5 if income_bracket == 'low' else 0.0}
+            {"feature": "monthly_income", "impact": income_impact},
+            {"feature": "account_age_months", "impact": age_impact},
+            {"feature": "income_bracket", "impact": bracket_impact}
         ]
         
         scores.append((
@@ -102,11 +122,11 @@ def main():
             risk_level,
             'v2_heuristic',
             top_features[0]['feature'],
-            top_features[0]['value'],
+            top_features[0]['impact'],
             top_features[1]['feature'],
-            top_features[1]['value'],
+            top_features[1]['impact'],
             top_features[2]['feature'],
-            top_features[2]['value']
+            top_features[2]['impact']
         ))
     
     # Batch insert

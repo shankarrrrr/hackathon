@@ -153,14 +153,28 @@ def generate_risk_scores():
     for customer_id, monthly_income, account_age_months, income_bracket in customers:
         # Simple heuristic
         base_score = 0.3
+        income_impact = 0.0
+        age_impact = 0.0
+        
         if monthly_income < 15000:
             base_score += 0.25
+            income_impact = 0.25
         elif monthly_income < 30000:
             base_score += 0.15
+            income_impact = 0.15
+        elif monthly_income < 50000:
+            income_impact = 0.05
+        
         if account_age_months < 12:
             base_score += 0.20
+            age_impact = 0.20
         elif account_age_months < 24:
             base_score += 0.10
+            age_impact = 0.10
+        elif account_age_months < 48:
+            age_impact = 0.05
+        
+        bracket_impact = 0.10 if income_bracket == 'low' else 0.0
         
         risk_score = max(0.0, min(1.0, base_score + random.uniform(-0.1, 0.1)))
         
@@ -179,9 +193,9 @@ def generate_risk_scores():
             float(risk_score),
             risk_level,
             'v2_auto',
-            'monthly_income', float(monthly_income / 100000),
-            'account_age_months', float(account_age_months / 100),
-            'income_bracket', 0.5 if income_bracket == 'low' else 0.0
+            'monthly_income', income_impact,
+            'account_age_months', age_impact,
+            'income_bracket', bracket_impact
         ))
     
     # Batch insert

@@ -63,6 +63,7 @@ class RiskResponse(BaseModel):
     risk_score: float
     risk_level: str
     top_features: List[Dict]
+    explanation: Dict  # Add explanation field
     timestamp: str
 
 class HealthResponse(BaseModel):
@@ -257,12 +258,40 @@ async def predict_risk(request: RiskRequest):
             for feat, val in sorted_features
         ]
         
+        # Create explanation with top_drivers for dashboard
+        top_drivers = []
+        for i, (feat, val) in enumerate(sorted_features, 1):
+            capped_val = float(max(-9.9999, min(9.9999, val)))
+            impact_pct = abs(capped_val) * 10  # Simple percentage calculation
+            top_drivers.append({
+                "feature": feat,
+                "value": f"{capped_val:.4f}",
+                "impact": capped_val,
+                "impact_pct": min(100, impact_pct)
+            })
+        
+        # Generate explanation text
+        explanation_text = f"This customer has a {risk_level.lower()} risk score of {risk_score:.1%}. "
+        if risk_score >= 0.5:
+            explanation_text += f"Key risk factors include {sorted_features[0][0]} and {sorted_features[1][0]}. "
+            explanation_text += "Immediate intervention recommended."
+        elif risk_score >= 0.3:
+            explanation_text += "Monitor closely for any changes in behavior patterns."
+        else:
+            explanation_text += "Customer shows stable financial behavior with low risk indicators."
+        
+        explanation = {
+            "explanation_text": explanation_text,
+            "top_drivers": top_drivers
+        }
+        
         # Create response
         response = RiskResponse(
             customer_id=request.customer_id,
             risk_score=risk_score,
             risk_level=risk_level,
             top_features=top_features,
+            explanation=explanation,
             timestamp=datetime.now().isoformat()
         )
         

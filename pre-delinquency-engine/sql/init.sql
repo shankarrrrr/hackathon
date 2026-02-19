@@ -136,3 +136,60 @@ CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON payments
 
 CREATE TRIGGER update_interventions_updated_at BEFORE UPDATE ON interventions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Customer assignments table for tracking risk officer assignments
+CREATE TABLE IF NOT EXISTS customer_assignments (
+    assignment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID NOT NULL REFERENCES customers(customer_id) ON DELETE CASCADE,
+    assigned_to VARCHAR(100) NOT NULL,
+    assigned_by VARCHAR(100) DEFAULT 'system',
+    assignment_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    risk_level VARCHAR(20) NOT NULL,
+    risk_score DECIMAL(5,4) NOT NULL,
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'reassigned')),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_assignments_customer ON customer_assignments(customer_id, assignment_date DESC);
+CREATE INDEX idx_assignments_officer ON customer_assignments(assigned_to, status);
+
+CREATE TRIGGER update_assignments_updated_at BEFORE UPDATE ON customer_assignments
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Intervention outcomes table for feedback loop
+CREATE TABLE IF NOT EXISTS intervention_outcomes (
+    outcome_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    intervention_id UUID NOT NULL REFERENCES interventions(intervention_id) ON DELETE CASCADE,
+    customer_id UUID NOT NULL REFERENCES customers(customer_id) ON DELETE CASCADE,
+    outcome_type VARCHAR(20) NOT NULL CHECK (outcome_type IN ('stabilized', 'unchanged', 'deteriorated')),
+    risk_score_before DECIMAL(5,4) NOT NULL,
+    risk_score_after DECIMAL(5,4),
+    days_since_intervention INT NOT NULL,
+    outcome_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_outcomes_intervention ON intervention_outcomes(intervention_id);
+CREATE INDEX idx_outcomes_customer ON intervention_outcomes(customer_id, outcome_date DESC);
+
+-- Action audit log table
+CREATE TABLE IF NOT EXISTS action_audit_log (
+    log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    action_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    action_type VARCHAR(50) NOT NULL,
+    performed_by VARCHAR(100) NOT NULL,
+    customer_count INT,
+    model_version VARCHAR(50),
+    confidence_level VARCHAR(20),
+    criteria TEXT,
+    override_reason TEXT,
+    override_category VARCHAR(50),
+    details JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_audit_log_time ON action_audit_log(action_time DESC);
+CREATE INDEX idx_audit_log_user ON action_audit_log(performed_by, action_time DESC);

@@ -795,29 +795,17 @@ if page == "Action Center":
         # Calculate KPI metrics
         kpi_metrics = calculate_kpi_metrics(df, engine)
         
-        # Calculate change since yesterday for "Customers at Risk"
-        yesterday_df = load_recent_risk_scores(days=2)
-        change_since_yesterday = 0
-        if yesterday_df is not None and len(yesterday_df) > 0:
-            from datetime import datetime, timedelta
-            yesterday = datetime.now().date() - timedelta(days=1)
-            yesterday_data = yesterday_df[yesterday_df['score_date'].dt.date == yesterday]
-            if len(yesterday_data) > 0:
-                yesterday_count = len(yesterday_data[yesterday_data['risk_level'].isin(['HIGH', 'CRITICAL'])])
-                change_since_yesterday = kpi_metrics['customers_at_risk_today'] - yesterday_count
-        
         # Display KPI cards in 4-column layout
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            delta_text = f"+{change_since_yesterday}" if change_since_yesterday > 0 else str(change_since_yesterday) if change_since_yesterday < 0 else None
             st.metric(
                 label="Customers at Risk",
                 value=f"{kpi_metrics['customers_at_risk_today']:,}",
-                delta=delta_text,
+                delta=None,
                 help="Count of customers with HIGH or CRITICAL risk level requiring immediate attention"
             )
-            st.caption("↑ since yesterday" if change_since_yesterday != 0 else "Today")
+            st.caption("Today")
         
         with col2:
             if kpi_metrics['defaults_avoided_mtd'] == 0:

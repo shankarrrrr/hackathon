@@ -795,42 +795,85 @@ if page == "Action Center":
         # Calculate KPI metrics
         kpi_metrics = calculate_kpi_metrics(df, engine)
         
+        # Calculate change since yesterday for "Customers at Risk"
+        yesterday_df = load_recent_risk_scores(days=2)
+        change_since_yesterday = 0
+        if yesterday_df is not None and len(yesterday_df) > 0:
+            from datetime import datetime, timedelta
+            yesterday = datetime.now().date() - timedelta(days=1)
+            yesterday_data = yesterday_df[yesterday_df['score_date'].dt.date == yesterday]
+            if len(yesterday_data) > 0:
+                yesterday_count = len(yesterday_data[yesterday_data['risk_level'].isin(['HIGH', 'CRITICAL'])])
+                change_since_yesterday = kpi_metrics['customers_at_risk_today'] - yesterday_count
+        
         # Display KPI cards in 4-column layout
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
+            delta_text = f"+{change_since_yesterday}" if change_since_yesterday > 0 else str(change_since_yesterday) if change_since_yesterday < 0 else None
             st.metric(
-                label="Customers at Risk Today",
+                label="Customers at Risk",
                 value=f"{kpi_metrics['customers_at_risk_today']:,}",
-                delta=None,
+                delta=delta_text,
                 help="Count of customers with HIGH or CRITICAL risk level requiring immediate attention"
             )
+            st.caption("↑ since yesterday" if change_since_yesterday != 0 else "Today")
         
         with col2:
-            st.metric(
-                label="Defaults Avoided (MTD)",
-                value=f"{kpi_metrics['defaults_avoided_mtd']:,}",
-                delta=None,
-                help="Month-to-date count of successful interventions (contacted, payment made, or plan agreed)"
-            )
+            if kpi_metrics['defaults_avoided_mtd'] == 0:
+                st.metric(
+                    label="Defaults Avoided",
+                    value="—",
+                    delta=None,
+                    help="Month-to-date count of successful interventions"
+                )
+                st.caption("Data will populate after first intervention cycle")
+            else:
+                st.metric(
+                    label="Defaults Avoided",
+                    value=f"{kpi_metrics['defaults_avoided_mtd']:,}",
+                    delta=None,
+                    help="Month-to-date count of successful interventions"
+                )
+                st.caption("MTD (Model-driven)")
         
         with col3:
-            effectiveness_pct = kpi_metrics['intervention_effectiveness'] * 100
-            st.metric(
-                label="Intervention Effectiveness",
-                value=f"{effectiveness_pct:.1f}%",
-                delta=None,
-                help="Percentage of interventions with positive customer responses this month"
-            )
+            if kpi_metrics['intervention_effectiveness'] == 0:
+                st.metric(
+                    label="Intervention Effectiveness",
+                    value="—",
+                    delta=None,
+                    help="Percentage of interventions with positive customer responses"
+                )
+                st.caption("Data will populate after first intervention cycle")
+            else:
+                effectiveness_pct = kpi_metrics['intervention_effectiveness'] * 100
+                st.metric(
+                    label="Intervention Effectiveness",
+                    value=f"{effectiveness_pct:.1f}%",
+                    delta=None,
+                    help="Percentage of interventions with positive customer responses"
+                )
+                st.caption("Based on last 30 days")
         
         with col4:
-            financial_impact = kpi_metrics['financial_impact_prevented']
-            st.metric(
-                label="Financial Impact Prevented",
-                value=f"${financial_impact:,.0f}",
-                delta=None,
-                help="Estimated monetary value of avoided defaults (defaults avoided × $5,000)"
-            )
+            if kpi_metrics['financial_impact_prevented'] == 0:
+                st.metric(
+                    label="Financial Impact Prevented",
+                    value="—",
+                    delta=None,
+                    help="Estimated monetary value of avoided defaults"
+                )
+                st.caption("Data will populate after first intervention cycle")
+            else:
+                financial_impact = kpi_metrics['financial_impact_prevented']
+                st.metric(
+                    label="Financial Impact Prevented",
+                    value=f"${financial_impact:,.0f}",
+                    delta=None,
+                    help="Estimated monetary value of avoided defaults"
+                )
+                st.caption("Estimated loss avoided")
         
         st.markdown("---")
         

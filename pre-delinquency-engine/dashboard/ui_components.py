@@ -619,8 +619,6 @@ def render_critical_action_panel(df, engine=None):
             use_container_width=True,
             type="primary"
         )
-        # Add confirmation hint below primary button
-        st.caption("No customer communication is sent without confirmation")
     
     with col2:
         view_customers = st.button(
@@ -635,6 +633,9 @@ def render_critical_action_panel(df, engine=None):
             key="assign_to_agent",
             use_container_width=True
         )
+    
+    # Add confirmation hint below all buttons (centered)
+    st.caption("No customer communication is sent without confirmation")
     
     # Add info strip with model metadata
     st.markdown(f"""
@@ -856,10 +857,11 @@ def render_critical_action_panel(df, engine=None):
                                 from datetime import datetime
                                 
                                 with engine.connect() as conn:
-                                    for customer in selected_customers:
-                                        customer_id = selection_data[selection_indices[selected_customers.index(customer)]]['_customer_id']
-                                        risk_score = selection_data[selection_indices[selected_customers.index(customer)]]['_risk_score']
-                                        risk_level = customer['Risk Level']
+                                    for idx in selected_indices:
+                                        customer_data = selection_data[idx]
+                                        customer_id = customer_data['_customer_id']
+                                        risk_score = customer_data['_risk_score']
+                                        risk_level = customer_data['Risk Level']
                                         
                                         # Insert assignment record
                                         conn.execute(text("""

@@ -1938,23 +1938,25 @@ elif page == "Interventions Tracker":
 
 elif page == "Data Management":
     st.markdown("### 🔄 Automated Data Pipeline")
-    st.markdown("Generate synthetic customers and retrain models with one click.")
+    st.caption("Generate synthetic customers and retrain models with one click")
     
-    st.markdown("---")
+    st.divider()
     
-    # Pipeline controls
-    col1, col2 = st.columns([3, 1])
+    # Pipeline controls in proper grid
+    col1, col2 = st.columns([2, 1])
     
     with col1:
         n_customers = st.slider("Number of customers to generate", 50, 500, 100, 50)
         st.info(f"💡 Will generate {n_customers} synthetic customers with realistic behavioral patterns")
     
     with col2:
-        st.metric("Pipeline Status", "Ready ✅")
+        st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
+        st.markdown("**PIPELINE STATUS**")
+        st.success("Ready ✅")
     
-    st.markdown("---")
+    st.divider()
     
-    # Run pipeline button
+    # Run pipeline button - full width
     if st.button("🚀 Run Automated Pipeline", type="primary", use_container_width=True):
         progress_bar = st.progress(0)
         status_text = st.empty()

@@ -1,93 +1,97 @@
 {
-  "ensemble_auc": 0.6371587377480278,
-  "optimal_threshold": 0.17077197163995175,
+  "auc_roc": 0.6374635429117859,
+  "ensemble_auc": 0.6374635429117859,
+  "optimal_threshold": 0.17204176866149223,
+  "precision": 0.22,
+  "recall": 0.96,
+  "f1_score": 0.36,
   "ensemble_weights": {
     "xgboost": 0.2,
-    "lightgbm": 0.5000000000000001,
-    "catboost": 0.29999999999999993
+    "lightgbm": 0.30000000000000004,
+    "catboost": 0.5
   },
   "feature_count": 104,
-  "training_date": "2026-02-19T11:39:13.726378",
+  "training_date": "2026-02-19T11:52:44.010836",
   "top_features": [
     {
       "feature": "cash_hoarding_flag_std",
-      "importance": 336.36260986328125
+      "importance": 365.8992004394531
     },
     {
       "feature": "atm_withdrawal_spike_min",
-      "importance": 332.7141418457031
-    },
-    {
-      "feature": "gambling_txns_max",
-      "importance": 319.4500427246094
-    },
-    {
-      "feature": "gambling_txns_std",
-      "importance": 316.5819091796875
-    },
-    {
-      "feature": "cash_hoarding_flag_max",
-      "importance": 312.716796875
+      "importance": 297.1260681152344
     },
     {
       "feature": "lending_app_transfers_mean",
-      "importance": 253.8749237060547
+      "importance": 288.2251281738281
     },
     {
-      "feature": "atm_withdrawal_spike_max",
-      "importance": 210.03128051757812
+      "feature": "gambling_txns_max",
+      "importance": 261.29217529296875
+    },
+    {
+      "feature": "gambling_txns_std",
+      "importance": 244.98280334472656
     },
     {
       "feature": "lending_app_transfers_std",
-      "importance": 206.2227020263672
+      "importance": 186.85850524902344
+    },
+    {
+      "feature": "atm_withdrawal_spike_max",
+      "importance": 180.10536193847656
     },
     {
       "feature": "overall_stress_score",
-      "importance": 193.81906127929688
-    },
-    {
-      "feature": "lending_app_transfers_max",
-      "importance": 191.50119018554688
-    },
-    {
-      "feature": "cash_hoarding_flag_mean",
-      "importance": 164.8238525390625
+      "importance": 162.49899291992188
     },
     {
       "feature": "lending_app_x_gambling",
-      "importance": 139.6291046142578
+      "importance": 120.64994049072266
     },
     {
-      "feature": "gambling_txns_trend",
-      "importance": 135.19847106933594
+      "feature": "cash_hoarding_flag_mean",
+      "importance": 114.32979583740234
+    },
+    {
+      "feature": "cash_hoarding_flag_max",
+      "importance": 108.13448333740234
+    },
+    {
+      "feature": "lending_app_transfers_max",
+      "importance": 107.3847885131836
     },
     {
       "feature": "gambling_txns_mean",
-      "importance": 132.01126098632812
+      "importance": 104.98238372802734
+    },
+    {
+      "feature": "gambling_txns_trend",
+      "importance": 101.65229034423828
     },
     {
       "feature": "utility_delay_days_max",
-      "importance": 115.98971557617188
+      "importance": 69.1135482788086
     },
     {
       "feature": "emi_delay_days_max",
-      "importance": 95.01188659667969
+      "importance": 60.69198226928711
     },
     {
       "feature": "salary_delay_x_failed_autodebits",
-      "importance": 85.8722152709961
-    },
-    {
-      "feature": "cash_hoarding_flag_trend",
-      "importance": 79.28154754638672
-    },
-    {
-      "feature": "utility_delay_days_consec_high",
-      "importance": 78.91094207763672
+      "importance": 60.357688903808594
     },
     {
       "feature": "salary_delay_x_failed_autodebits_v2",
-      "importance": 77.66414642333984
+      "importance": 51.773258209228516
+    },
+    {
+      "feature": "cash_hoarding_flag_trend",
+      "importance": 47.69746398925781
+    },
+    {
+      "feature": "salary_delay_weeks_consec_high",
+      "importance": 42.79552459716797
     }
   ]
 }

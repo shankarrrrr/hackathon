@@ -1522,6 +1522,13 @@ elif page == "Real-time Monitor":
     if df is None or len(df) == 0:
         st.info("📭 No recent risk scores. Data will appear here as new scores are generated.")
     else:
+        # Import for timezone handling
+        from datetime import datetime, timezone
+        import pandas as pd
+        
+        # Ensure datetime objects are timezone-aware
+        current_time = datetime.now(timezone.utc)
+        
         # Real-time Activity Feed - NEW FEATURE
         st.markdown("### 📡 Live Activity Feed")
         st.caption("Recent risk scoring activity and alerts")
@@ -1535,7 +1542,12 @@ elif page == "Real-time Monitor":
             
             if len(high_risk_recent) > 0:
                 for idx, row in high_risk_recent.iterrows():
-                    time_ago = (datetime.now() - row['score_date']).total_seconds() / 60
+                    # Handle timezone-aware datetime
+                    score_date = pd.to_datetime(row['score_date'])
+                    if score_date.tzinfo is None:
+                        score_date = score_date.replace(tzinfo=timezone.utc)
+                    
+                    time_ago = (current_time - score_date).total_seconds() / 60
                     
                     if time_ago < 1:
                         time_str = "Just now"
@@ -1556,21 +1568,97 @@ elif page == "Real-time Monitor":
                 st.success("✅ No high-risk alerts in the last hour")
         
         with col2:
-            # Real-time statistics
+            # Real-time statistics with visual indicators
             st.markdown("**Activity Summary**")
-            st.metric("Total Scores", len(df))
-            st.metric("High Risk", len(df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]))
-            st.metric("Avg Score", f"{df['risk_score'].mean():.2%}")
+            
+            total_scores = len(df)
+            high_risk_count = len(df[df['risk_level'].isin(['HIGH', 'CRITICAL'])])
+            avg_score = df['risk_score'].mean()
+            
+            # Visual gauge for average score
+            st.metric("Total Scores", total_scores)
+            st.metric("High Risk", high_risk_count, delta=f"{(high_risk_count/total_scores*100):.1f}%" if total_scores > 0 else "0%")
+            st.metric("Avg Score", f"{avg_score:.2%}")
             
             # Score velocity (scores per minute)
             if len(df) > 1:
-                time_span = (df['score_date'].max() - df['score_date'].min()).total_seconds() / 60
+                df_sorted = df.sort_values('score_date')
+                time_span = (df_sorted['score_date'].iloc[-1] - df_sorted['score_date'].iloc[0]).total_seconds() / 60
                 velocity = len(df) / time_span if time_span > 0 else 0
                 st.metric("Scoring Rate", f"{velocity:.1f}/min")
         
         st.divider()
         
-        # Risk Score Trend - Simplified chart
+        # Risk Level Distribution - Visual Bar Chart
+        st.markdown("### 📊 Risk Level Distribution")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Create bar chart of risk levels
+            risk_counts = df['risk_level'].value_counts()
+            
+            import plotly.graph_objects as go
+            
+            colors = {
+                'CRITICAL': '#DC2626',
+                'HIGH': '#F59E0B',
+                'MEDIUM': '#FCD34D',
+                'LOW': '#10B981'
+            }
+            
+            fig = go.Figure(data=[
+                go.Bar(
+                    x=risk_counts.index,
+                    y=risk_counts.values,
+                    marker_color=[colors.get(level, '#6B7280') for level in risk_counts.index],
+                    text=risk_counts.values,
+                    textposition='auto',
+                )
+            ])
+            
+            fig.update_layout(
+                title="Customer Count by Risk Level",
+                xaxis_title="Risk Level",
+                yaxis_title="Number of Customers",
+                height=300,
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig, use_container_width=True, key="risk_level_bar")
+        
+        with col2:
+            # Risk score gauge chart
+            st.markdown("**Average Risk Score**")
+            
+            fig_gauge = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=avg_score * 100,
+                domain={'x': [0, 1], 'y': [0, 1]},
+                title={'text': "Risk %"},
+                gauge={
+                    'axis': {'range': [None, 100]},
+                    'bar': {'color': "darkblue"},
+                    'steps': [
+                        {'range': [0, 40], 'color': "#10B981"},
+                        {'range': [40, 60], 'color': "#FCD34D"},
+                        {'range': [60, 75], 'color': "#F59E0B"},
+                        {'range': [75, 100], 'color': "#DC2626"}
+                    ],
+                    'threshold': {
+                        'line': {'color': "red", 'width': 4},
+                        'thickness': 0.75,
+                        'value': 75
+                    }
+                }
+            ))
+            
+            fig_gauge.update_layout(height=300)
+            st.plotly_chart(fig_gauge, use_container_width=True, key="risk_gauge")
+        
+        st.divider()
+        
+        # Risk Score Trend - Time series
         st.markdown("### 📈 Risk Score Trend")
         st.caption("Risk scores over the last hour")
         
@@ -1596,15 +1684,18 @@ elif page == "Real-time Monitor":
         
         st.divider()
         
-        # System Health Indicators - NEW FEATURE
+        # System Health Indicators
         st.markdown("### 🏥 System Health")
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             # Data freshness
-            latest_score_time = df['score_date'].max()
-            minutes_old = (datetime.now() - latest_score_time).total_seconds() / 60
+            latest_score_date = pd.to_datetime(df['score_date'].max())
+            if latest_score_date.tzinfo is None:
+                latest_score_date = latest_score_date.replace(tzinfo=timezone.utc)
+            
+            minutes_old = (current_time - latest_score_date).total_seconds() / 60
             
             if minutes_old < 5:
                 st.success(f"✅ Fresh\n\n{int(minutes_old)} min old")
@@ -1645,7 +1736,7 @@ elif page == "Real-time Monitor":
             display_df.columns = ['Customer ID', 'Risk Score', 'Risk Level', 'Top Risk Driver', 'Timestamp']
             st.dataframe(display_df, use_container_width=True, hide_index=True)
         
-        st.caption(f"📊 Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        st.caption(f"📊 Last updated: {current_time.strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
 # ============================================================================
 # MODEL PERFORMANCE PAGE

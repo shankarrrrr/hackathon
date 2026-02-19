@@ -311,6 +311,44 @@ st.markdown(f"<p style='color: #000000; font-size: 15px; margin-bottom: 2rem;'>{
 # ============================================================================
 
 if page == "Risk Overview":
+    # Automated Pipeline Button
+    st.markdown("### 🔄 Data Management")
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        if st.button("🚀 Generate New Customers & Retrain", type="primary", use_container_width=True):
+            with st.spinner("Running automated pipeline..."):
+                import subprocess
+                import json
+                
+                try:
+                    result = subprocess.run(
+                        ["python3", "src/workflows/auto_pipeline.py", "100"],
+                        capture_output=True,
+                        text=True,
+                        timeout=120
+                    )
+                    
+                    if result.returncode == 0:
+                        output = json.loads(result.stdout.split('\n')[-2])
+                        st.success(f"✅ Pipeline Complete! Added {output['new_customers']} customers, scored {output['risk_scores']}")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Pipeline failed: {result.stderr}")
+                except subprocess.TimeoutExpired:
+                    st.warning("⚠️ Pipeline is taking longer than expected. Check logs.")
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
+    
+    with col2:
+        st.metric("Pipeline Status", "Ready", delta=None)
+    
+    with col3:
+        last_run = "Never"
+        st.metric("Last Run", last_run)
+    
+    st.markdown("---")
+    
     # Load latest risk scores
     df = load_latest_risk_scores()
     

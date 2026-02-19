@@ -1504,86 +1504,148 @@ elif page == "Customer Deep Dive":
 # ============================================================================
 
 elif page == "Real-time Monitor":
-    # Auto-refresh checkbox and manual refresh button with improved layout
-    st.markdown("### ⚙️ Monitor Settings")
-    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
+    st.markdown("### ⚡ Real-time Risk Monitor")
+    st.caption("Live monitoring of risk score changes and system activity")
     
-    col1, col2, col3 = st.columns([3, 1, 1], gap="medium")
-    
+    # Manual refresh only - no auto-refresh to reduce API load
+    col1, col2 = st.columns([4, 1])
     with col1:
-        auto_refresh = st.checkbox("🔄 Auto-refresh (every 5 seconds)", value=True)
-    
+        st.info("💡 Click 'Refresh' to load latest data. Auto-refresh disabled to optimize performance.")
     with col2:
-        refresh_button = st.button("🔄 Refresh Now", use_container_width=True)
+        refresh_button = st.button("🔄 Refresh", use_container_width=True, type="primary")
     
-    with col3:
-        st.markdown("")  # Spacer
+    st.divider()
     
-    st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
-    
-    # Load recent risk scores (Task 6.1)
+    # Load recent risk scores with longer TTL to reduce API calls
     df = load_recent_risk_scores()
     
     if df is None or len(df) == 0:
-        st.info("No risk scores recorded in the last hour. Data will appear here as new scores are generated.")
+        st.info("📭 No recent risk scores. Data will appear here as new scores are generated.")
     else:
-        # Time-series scatter plot (Task 6.4)
-        st.markdown("### 📈 Risk Scores Over Time")
-        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Real-time visualization of risk score updates in the last hour</p>", unsafe_allow_html=True)
+        # Real-time Activity Feed - NEW FEATURE
+        st.markdown("### 📡 Live Activity Feed")
+        st.caption("Recent risk scoring activity and alerts")
+        
+        # Show activity timeline
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Activity cards for recent high-risk detections
+            high_risk_recent = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])].head(5)
+            
+            if len(high_risk_recent) > 0:
+                for idx, row in high_risk_recent.iterrows():
+                    time_ago = (datetime.now() - row['score_date']).total_seconds() / 60
+                    
+                    if time_ago < 1:
+                        time_str = "Just now"
+                    elif time_ago < 60:
+                        time_str = f"{int(time_ago)} min ago"
+                    else:
+                        time_str = f"{int(time_ago/60)} hr ago"
+                    
+                    alert_emoji = "🔴" if row['risk_level'] == 'CRITICAL' else "🟠"
+                    
+                    with st.container():
+                        st.markdown(f"""
+                        {alert_emoji} **{row['risk_level']} Risk Detected** - {time_str}  
+                        Customer `{row['customer_id'][:12]}...` | Score: **{row['risk_score']:.2%}** | Driver: {row['top_feature_1']}
+                        """)
+                        st.divider()
+            else:
+                st.success("✅ No high-risk alerts in the last hour")
+        
+        with col2:
+            # Real-time statistics
+            st.markdown("**Activity Summary**")
+            st.metric("Total Scores", len(df))
+            st.metric("High Risk", len(df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]))
+            st.metric("Avg Score", f"{df['risk_score'].mean():.2%}")
+            
+            # Score velocity (scores per minute)
+            if len(df) > 1:
+                time_span = (df['score_date'].max() - df['score_date'].min()).total_seconds() / 60
+                velocity = len(df) / time_span if time_span > 0 else 0
+                st.metric("Scoring Rate", f"{velocity:.1f}/min")
+        
+        st.divider()
+        
+        # Risk Score Trend - Simplified chart
+        st.markdown("### 📈 Risk Score Trend")
+        st.caption("Risk scores over the last hour")
         
         try:
-            # Get consistent color mapping for risk levels
             color_map = get_risk_level_color_map()
             
-            # Create scatter plot using UI component
             fig = render_scatter_plot(
                 df=df,
                 x_col='score_date',
                 y_col='risk_score',
                 color_col='risk_level',
-                title='Risk Scores in the Last Hour',
+                title='Risk Scores Timeline',
                 color_map=color_map,
                 hover_data=['customer_id', 'top_feature_1']
             )
             
-            # Update y-axis to show 0-1 range
             fig.update_yaxes(range=[0, 1])
-            
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="realtime_scatter")
             
         except Exception as e:
-            st.warning(f"⚠️ Chart could not be rendered: {str(e)}")
-            st.dataframe(df[['score_date', 'customer_id', 'risk_score', 'risk_level']])
-            st.info("The dashboard will continue operating. Chart rendering issue logged.")
+            # Fallback to simple line chart
+            st.line_chart(df.set_index('score_date')['risk_score'])
         
-        st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
+        st.divider()
         
-        # Recent updates table (Task 6.7)
-        st.markdown("### 📋 Recent Updates")
-        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Latest risk score calculations and updates</p>", unsafe_allow_html=True)
+        # System Health Indicators - NEW FEATURE
+        st.markdown("### 🏥 System Health")
         
-        # Format data for display
-        display_df = df.copy()
+        col1, col2, col3, col4 = st.columns(4)
         
-        # Format risk scores as percentages
-        display_df['risk_score'] = display_df['risk_score'].apply(format_risk_score)
+        with col1:
+            # Data freshness
+            latest_score_time = df['score_date'].max()
+            minutes_old = (datetime.now() - latest_score_time).total_seconds() / 60
+            
+            if minutes_old < 5:
+                st.success(f"✅ Fresh\n\n{int(minutes_old)} min old")
+            elif minutes_old < 15:
+                st.warning(f"⚠️ Aging\n\n{int(minutes_old)} min old")
+            else:
+                st.error(f"❌ Stale\n\n{int(minutes_old)} min old")
         
-        # Format timestamps as YYYY-MM-DD HH:MM:SS
-        display_df['score_date'] = display_df['score_date'].apply(format_timestamp)
+        with col2:
+            # Score distribution health
+            critical_pct = len(df[df['risk_level'] == 'CRITICAL']) / len(df) * 100
+            
+            if critical_pct < 5:
+                st.success(f"✅ Healthy\n\n{critical_pct:.1f}% critical")
+            elif critical_pct < 15:
+                st.warning(f"⚠️ Elevated\n\n{critical_pct:.1f}% critical")
+            else:
+                st.error(f"❌ Alert\n\n{critical_pct:.1f}% critical")
         
-        # Rename columns for display
-        display_df.columns = ['Customer ID', 'Risk Score', 'Risk Level', 'Top Risk Driver', 'Timestamp']
+        with col3:
+            # Model coverage
+            st.info(f"📊 Coverage\n\n{len(df)} customers")
         
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        with col4:
+            # Database status
+            if engine is not None:
+                st.success("✅ DB Online\n\nConnected")
+            else:
+                st.error("❌ DB Offline\n\nDisconnected")
         
-        # Display data freshness indicator
-        st.caption(f"📊 Showing {len(df)} risk score updates from the last hour")
-    
-    # Auto-refresh logic (Task 6.3)
-    if auto_refresh:
-        import time
-        time.sleep(5)
-        st.rerun()
+        st.divider()
+        
+        # Recent Updates Table - Compact view
+        with st.expander("📋 View Detailed Score Log", expanded=False):
+            display_df = df.copy()
+            display_df['risk_score'] = display_df['risk_score'].apply(format_risk_score)
+            display_df['score_date'] = display_df['score_date'].apply(format_timestamp)
+            display_df.columns = ['Customer ID', 'Risk Score', 'Risk Level', 'Top Risk Driver', 'Timestamp']
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+        
+        st.caption(f"📊 Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 # ============================================================================
 # MODEL PERFORMANCE PAGE

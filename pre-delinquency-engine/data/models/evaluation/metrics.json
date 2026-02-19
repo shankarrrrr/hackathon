@@ -1,97 +1,102 @@
 {
-  "auc_roc": 0.6374635429117859,
-  "ensemble_auc": 0.6374635429117859,
-  "optimal_threshold": 0.17204176866149223,
+  "auc_roc": 0.6382572316519244,
+  "ensemble_auc": 0.6382572316519244,
+  "optimal_threshold": 0.17334272726100652,
   "precision": 0.22,
   "recall": 0.96,
   "f1_score": 0.36,
+  "accuracy": 0.2771111111111111,
+  "true_positives": 907,
+  "true_negatives": 340,
+  "false_positives": 3215,
+  "false_negatives": 37,
   "ensemble_weights": {
     "xgboost": 0.2,
-    "lightgbm": 0.30000000000000004,
-    "catboost": 0.5
+    "lightgbm": 0.4000000000000001,
+    "catboost": 0.39999999999999997
   },
   "feature_count": 104,
-  "training_date": "2026-02-19T11:52:44.010836",
+  "training_date": "2026-02-19T11:58:49.169159",
   "top_features": [
     {
-      "feature": "cash_hoarding_flag_std",
-      "importance": 365.8992004394531
+      "feature": "gambling_txns_std",
+      "importance": 485.1331787109375
     },
     {
       "feature": "atm_withdrawal_spike_min",
-      "importance": 297.1260681152344
-    },
-    {
-      "feature": "lending_app_transfers_mean",
-      "importance": 288.2251281738281
-    },
-    {
-      "feature": "gambling_txns_max",
-      "importance": 261.29217529296875
-    },
-    {
-      "feature": "gambling_txns_std",
-      "importance": 244.98280334472656
-    },
-    {
-      "feature": "lending_app_transfers_std",
-      "importance": 186.85850524902344
-    },
-    {
-      "feature": "atm_withdrawal_spike_max",
-      "importance": 180.10536193847656
-    },
-    {
-      "feature": "overall_stress_score",
-      "importance": 162.49899291992188
-    },
-    {
-      "feature": "lending_app_x_gambling",
-      "importance": 120.64994049072266
-    },
-    {
-      "feature": "cash_hoarding_flag_mean",
-      "importance": 114.32979583740234
+      "importance": 404.65863037109375
     },
     {
       "feature": "cash_hoarding_flag_max",
-      "importance": 108.13448333740234
+      "importance": 401.8087158203125
+    },
+    {
+      "feature": "lending_app_transfers_mean",
+      "importance": 399.77117919921875
+    },
+    {
+      "feature": "cash_hoarding_flag_std",
+      "importance": 391.8048400878906
+    },
+    {
+      "feature": "gambling_txns_max",
+      "importance": 352.54132080078125
+    },
+    {
+      "feature": "lending_app_transfers_std",
+      "importance": 278.6182556152344
+    },
+    {
+      "feature": "atm_withdrawal_spike_max",
+      "importance": 274.3236389160156
+    },
+    {
+      "feature": "overall_stress_score",
+      "importance": 235.71240234375
+    },
+    {
+      "feature": "lending_app_x_gambling",
+      "importance": 200.44407653808594
     },
     {
       "feature": "lending_app_transfers_max",
-      "importance": 107.3847885131836
+      "importance": 194.6702423095703
+    },
+    {
+      "feature": "cash_hoarding_flag_mean",
+      "importance": 178.40806579589844
     },
     {
       "feature": "gambling_txns_mean",
-      "importance": 104.98238372802734
+      "importance": 157.77149963378906
     },
     {
       "feature": "gambling_txns_trend",
-      "importance": 101.65229034423828
+      "importance": 142.5901336669922
     },
     {
       "feature": "utility_delay_days_max",
-      "importance": 69.1135482788086
+      "importance": 141.210205078125
     },
     {
       "feature": "emi_delay_days_max",
-      "importance": 60.69198226928711
-    },
-    {
-      "feature": "salary_delay_x_failed_autodebits",
-      "importance": 60.357688903808594
+      "importance": 114.68972778320312
     },
     {
       "feature": "salary_delay_x_failed_autodebits_v2",
-      "importance": 51.773258209228516
+      "importance": 110.28035736083984
+    },
+    {
+      "feature": "utility_delay_days_consec_high",
+      "importance": 108.66251373291016
     },
     {
       "feature": "cash_hoarding_flag_trend",
-      "importance": 47.69746398925781
+      "importance": 105.3984603881836
     },
     {
-      "feature": "salary_delay_weeks_consec_high",
-      "importance": 42.79552459716797
+      "feature": "emi_delay_days_min",
+      "importance": 79.30846405029297
     }
   ]
 }

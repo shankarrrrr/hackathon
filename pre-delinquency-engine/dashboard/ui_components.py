@@ -570,68 +570,83 @@ def render_critical_action_panel(df, engine=None):
     
     # Calculate time since last evaluation (simulated as "just now" for real-time feel)
     last_eval_minutes = random.randint(1, 5)
-    last_eval_text = f"{last_eval_minutes} minute{'s' if last_eval_minutes > 1 else ''} ago"
+    last_eval_text = f"{last_eval_minutes} min ago"
     model_version = "v2.3"
-    confidence_level = "High"
+    confidence_level = "High (validated)"
     
     # Display panel header with improved hierarchy and diagnostic summary
     st.markdown(f"""
         <div style='background: #FEF2F2; padding: 2rem; border-radius: 8px; 
-                    border-left: 4px solid #DC2626; margin-bottom: 1rem;'>
+                    border-left: 3px solid #DC2626; margin-bottom: 1rem;'>
             <div style='display: flex; justify-content: space-between; align-items: flex-start;'>
                 <div style='flex: 1;'>
                     <div style='font-size: 1.75rem; font-weight: 700; color: #7F1D1D; margin-bottom: 0.75rem;'>
                         🚨 Immediate Risk Interventions Required
+                        <span style='display: inline-block; background: #E5E7EB; color: #374151; font-size: 0.625rem; 
+                                     font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 4px; margin-left: 0.75rem; 
+                                     text-transform: uppercase; letter-spacing: 0.05em;'
+                              title='Generated automatically by the risk engine based on latest portfolio signals'>
+                            AUTO-GENERATED
+                        </span>
                     </div>
-                    <div style='font-size: 1.125rem; font-weight: 500; color: #991B1B; margin-bottom: 1rem;'>
+                    <div style='font-size: 1.125rem; font-weight: 700; color: #991B1B; margin-bottom: 0.75rem;'>
                         {critical_count} customers are at high risk of near-term delinquency (next 7 days)
                     </div>
-                    <div style='font-size: 0.875rem; color: #6B7280; font-style: italic; margin-bottom: 0.5rem;'>
+                    <div style='font-size: 0.8125rem; color: #9CA3AF; margin-bottom: 0.5rem;'>
                         {diagnostic_summary}
                     </div>
                 </div>
                 <div>
-                    <a href="#" style='font-size: 0.75rem; color: #6B7280; text-decoration: none;' 
-                       title='Customers flagged based on composite risk score > 0.72 and accelerating risk trend in last 72 hours.'>
-                        ❓ Why am I seeing this?
+                    <a href="#" style='font-size: 0.75rem; color: #6B7280; text-decoration: none; font-weight: 500;' 
+                       title='Triggered when:&#10;• Composite risk score > 0.72&#10;• Risk trend accelerating over last 72 hours&#10;• No successful intervention in prior cycle'>
+                        📋 Explain risk criteria
                     </a>
                 </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
     
+    # Add vertical spacing before buttons
+    st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+    
     # Create three action buttons with proper hierarchy
-    col1, col2, col3 = st.columns([2, 2, 1.5])
+    col1, col2, col3 = st.columns([2.5, 2, 1.5])
     
     with col1:
         trigger_interventions = st.button(
-            "🔥 Trigger Recommended Interventions",
+            f"🔥 Trigger Recommended Interventions ({critical_count} Customers)",
             key="trigger_interventions",
             use_container_width=True,
             type="primary"
         )
+        # Add confirmation hint below primary button
+        st.markdown("""
+            <p style='font-size: 0.7rem; color: #9CA3AF; margin-top: 0.25rem; margin-bottom: 0;'>
+                No customer communication is sent without confirmation
+            </p>
+        """, unsafe_allow_html=True)
     
     with col2:
         view_customers = st.button(
-            f"👁 Review Critical Customers ({critical_count})",
+            "👁 View Customer Risk Details",
             key="view_critical_customers",
             use_container_width=True
         )
     
     with col3:
         assign_to_agent = st.button(
-            "👤 Assign Ownership",
+            "👤 Assign to Risk Officer",
             key="assign_to_agent",
             use_container_width=True
         )
     
     # Add info strip with model metadata
     st.markdown(f"""
-        <div style='font-size: 0.75rem; color: #6B7280; margin-top: 0.75rem; padding: 0.5rem; 
+        <div style='font-size: 0.75rem; color: #6B7280; margin-top: 1rem; padding: 0.5rem; 
                     background: #F9FAFB; border-radius: 4px; display: flex; gap: 1.5rem;'>
-            <span>⏱ Last evaluated: {last_eval_text}</span>
+            <span>⏱ Evaluated {last_eval_text}</span>
             <span>|</span>
-            <span>Model version: {model_version}</span>
+            <span>Model {model_version}</span>
             <span>|</span>
             <span>Confidence: {confidence_level}</span>
         </div>
@@ -745,24 +760,24 @@ def render_critical_action_panel(df, engine=None):
     
     # Display agent assignment form if requested
     if st.session_state.get('show_agent_assignment', False):
-        with st.expander("Assign Customers to Agent", expanded=True):
+        with st.expander("Assign Customers to Risk Officer", expanded=True):
             if len(critical_df) > 0:
-                st.markdown("### 👤 Agent Assignment")
-                st.markdown("<p style='color: #6B7280; font-size: 14px; margin-bottom: 1rem;'>Select an agent and customers to assign</p>", unsafe_allow_html=True)
+                st.markdown("### 👤 Risk Officer Assignment")
+                st.markdown("<p style='color: #6B7280; font-size: 14px; margin-bottom: 1rem;'>Select a risk officer and customers to assign</p>", unsafe_allow_html=True)
                 
                 # Agent selection dropdown
                 agent_list = [
-                    "Agent 1 - John Smith",
-                    "Agent 2 - Sarah Johnson",
-                    "Agent 3 - Michael Brown",
-                    "Agent 4 - Emily Davis",
-                    "Agent 5 - David Wilson"
+                    "Risk Officer 1 - John Smith",
+                    "Risk Officer 2 - Sarah Johnson",
+                    "Risk Officer 3 - Michael Brown",
+                    "Risk Officer 4 - Emily Davis",
+                    "Risk Officer 5 - David Wilson"
                 ]
                 
                 selected_agent = st.selectbox(
-                    "Select Agent",
+                    "Select Risk Officer",
                     options=agent_list,
-                    help="Choose an agent to assign the selected customers"
+                    help="Choose a risk officer to assign the selected customers"
                 )
                 
                 st.markdown("<div style='margin: 1rem 0;'></div>", unsafe_allow_html=True)

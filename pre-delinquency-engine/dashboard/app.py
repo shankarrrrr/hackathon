@@ -750,10 +750,105 @@ st.markdown(f"<p style='color: #000000; font-size: 15px; margin-bottom: 2rem;'>{
 # ============================================================================
 
 if page == "Action Center":
+    # Custom CSS for enhanced UI
+    st.markdown("""
+        <style>
+        /* Action Center Custom Styles */
+        .action-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border: 1px solid #E5E7EB;
+        }
+        .action-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            padding: 1.25rem;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .metric-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+        }
+        .tier-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .officer-card {
+            background: #F9FAFB;
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid #3B82F6;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .officer-card:hover {
+            background: #F3F4F6;
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .dialog-container {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            border: 1px solid #E5E7EB;
+            margin-top: 1rem;
+        }
+        .action-button {
+            transition: all 0.2s ease;
+        }
+        .action-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .info-banner {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-left: 4px solid #667eea;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .warning-banner {
+            background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+            border-left: 4px solid #F59E0B;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .success-banner {
+            background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+            border-left: 4px solid #10B981;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .error-banner {
+            background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+            border-left: 4px solid #EF4444;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin: 1rem 0;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.markdown("### 🎯 Action Center — Preventive Intelligence Command")
     st.caption("Prioritized action queue with AI-powered recommendations")
     
-    # Mode Toggle
+    # Mode Toggle with enhanced styling
     col1, col2, col3 = st.columns([1, 1, 3])
     with col1:
         mode = st.radio("Operation Mode", ["AUTO MODE", "REVIEW MODE"], horizontal=True, label_visibility="collapsed")
@@ -934,20 +1029,44 @@ if page == "Action Center":
         cooldown_customers = df[df['customer_id'].isin(recently_contacted)]
         
         if len(cooldown_customers) > 0:
-            st.warning(f"""
-            ⚠️ **{len(cooldown_customers)} customers contacted in last 5 days**
+            st.markdown(f"""
+                <div class='warning-banner'>
+                    <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                        <div style='font-size: 2rem;'>⚠️</div>
+                        <div style='flex: 1;'>
+                            <div style='font-size: 1rem; font-weight: 600; color: #92400E; margin-bottom: 0.25rem;'>
+                                {len(cooldown_customers)} customers in cool-down period
+                            </div>
+                            <div style='font-size: 0.875rem; color: #78350F;'>
+                                Contacted in last 5 days. Recommended: Skip or downgrade intervention to prevent customer fatigue.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
             
-            Recommended: Skip or downgrade intervention to prevent customer fatigue
-            """)
-            
-            with st.expander("View customers in cool-down period"):
+            with st.expander("🔍 View customers in cool-down period"):
                 st.dataframe(
                     cooldown_customers[['customer_id', 'risk_score', 'risk_level']].head(10),
                     use_container_width=True,
                     hide_index=True
                 )
         else:
-            st.success("✅ No cool-down conflicts detected")
+            st.markdown("""
+                <div class='success-banner'>
+                    <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                        <div style='font-size: 2rem;'>✅</div>
+                        <div>
+                            <div style='font-size: 1rem; font-weight: 600; color: #065F46;'>
+                                No cool-down conflicts detected
+                            </div>
+                            <div style='font-size: 0.875rem; color: #047857;'>
+                                All customers are eligible for intervention
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
         
         st.divider()
         
@@ -972,23 +1091,76 @@ if page == "Action Center":
                         
                         with col1:
                             stabilized = outcomes.get('stabilized', 0)
-                            st.metric("✔ Stabilized", stabilized, delta="Success", delta_color="normal")
+                            st.markdown(f"""
+                                <div style='background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%); 
+                                            border-radius: 12px; padding: 1.5rem; text-align: center;
+                                            border: 2px solid #10B981; transition: all 0.3s ease;'>
+                                    <div style='font-size: 2.5rem; margin-bottom: 0.5rem;'>✔</div>
+                                    <div style='font-size: 2rem; font-weight: 700; color: #065F46;'>{stabilized}</div>
+                                    <div style='font-size: 0.875rem; color: #047857; font-weight: 600; margin-top: 0.5rem;'>Stabilized</div>
+                                    <div style='font-size: 0.75rem; color: #059669; margin-top: 0.25rem;'>Success</div>
+                                </div>
+                            """, unsafe_allow_html=True)
                         
                         with col2:
                             unchanged = outcomes.get('unchanged', 0)
-                            st.metric("➖ Unchanged", unchanged, delta="Neutral", delta_color="off")
+                            st.markdown(f"""
+                                <div style='background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%); 
+                                            border-radius: 12px; padding: 1.5rem; text-align: center;
+                                            border: 2px solid #F59E0B; transition: all 0.3s ease;'>
+                                    <div style='font-size: 2.5rem; margin-bottom: 0.5rem;'>➖</div>
+                                    <div style='font-size: 2rem; font-weight: 700; color: #92400E;'>{unchanged}</div>
+                                    <div style='font-size: 0.875rem; color: #B45309; font-weight: 600; margin-top: 0.5rem;'>Unchanged</div>
+                                    <div style='font-size: 0.75rem; color: #D97706; margin-top: 0.25rem;'>Neutral</div>
+                                </div>
+                            """, unsafe_allow_html=True)
                         
                         with col3:
                             deteriorated = outcomes.get('deteriorated', 0)
-                            st.metric("✖ Deteriorated", deteriorated, delta="Review needed", delta_color="inverse")
+                            st.markdown(f"""
+                                <div style='background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%); 
+                                            border-radius: 12px; padding: 1.5rem; text-align: center;
+                                            border: 2px solid #EF4444; transition: all 0.3s ease;'>
+                                    <div style='font-size: 2.5rem; margin-bottom: 0.5rem;'>✖</div>
+                                    <div style='font-size: 2rem; font-weight: 700; color: #991B1B;'>{deteriorated}</div>
+                                    <div style='font-size: 0.875rem; color: #B91C1C; font-weight: 600; margin-top: 0.5rem;'>Deteriorated</div>
+                                    <div style='font-size: 0.75rem; color: #DC2626; margin-top: 0.25rem;'>Review needed</div>
+                                </div>
+                            """, unsafe_allow_html=True)
                         
                         total_outcomes = sum(outcomes.values())
                         success_rate = (stabilized / total_outcomes * 100) if total_outcomes > 0 else 0
-                        st.caption(f"Overall success rate: {success_rate:.1f}% | Model learning from {total_outcomes} outcomes")
+                        
+                        st.markdown(f"""
+                            <div class='info-banner' style='margin-top: 1rem;'>
+                                <div style='font-size: 0.875rem; color: #4338CA;'>
+                                    <strong>Overall success rate: {success_rate:.1f}%</strong> | 
+                                    Model learning from {total_outcomes} outcomes
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
                     else:
-                        st.info("📊 No outcome data available yet. Outcomes are tracked 7 days after interventions.")
+                        st.markdown("""
+                            <div class='info-banner'>
+                                <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                    <div style='font-size: 1.5rem;'>📊</div>
+                                    <div style='font-size: 0.875rem; color: #4338CA;'>
+                                        No outcome data available yet. Outcomes are tracked 7 days after interventions.
+                                    </div>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
             except Exception as e:
-                st.info("📊 Outcome tracking will be available after first intervention cycle completes")
+                st.markdown("""
+                    <div class='info-banner'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <div style='font-size: 1.5rem;'>📊</div>
+                            <div style='font-size: 0.875rem; color: #4338CA;'>
+                                Outcome tracking will be available after first intervention cycle completes
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
         
         st.divider()
         
@@ -1037,24 +1209,18 @@ if page == "Action Center":
                 
                 if st.button("🔥 Trigger Interventions", type="primary", use_container_width=True, disabled=action_disabled):
                     # Show override reason capture if user is overriding recommendations
-                    if 'show_override_form' not in st.session_state:
-                        st.session_state['show_override_form'] = True
-                        st.rerun()
+                    st.session_state['show_override_form'] = True
+                    st.rerun()
             
             with col_b:
                 if st.button("📋 Assign to Officers", use_container_width=True):
                     st.session_state['show_assignment_panel'] = True
+                    st.rerun()
             
             with col_c:
                 if st.button("📊 Export Queue", use_container_width=True):
-                    csv_data = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])][['customer_id', 'risk_score', 'risk_level', 'top_feature_1']].to_csv(index=False)
-                    st.download_button(
-                        label="Download CSV",
-                        data=csv_data,
-                        file_name=f"action_queue_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
+                    st.session_state['show_export_dialog'] = True
+                    st.rerun()
         
         with col2:
             st.markdown("#### 🎯 Ownership Load Balancer")
@@ -1071,18 +1237,38 @@ if page == "Action Center":
             for name, cases in officers:
                 recommended = " ✓ Recommended" if cases < 8 else ""
                 color = "#10B981" if cases < 8 else "#F59E0B" if cases < 12 else "#EF4444"
+                bg_color = "#ECFDF5" if cases < 8 else "#FFFBEB" if cases < 12 else "#FEF2F2"
+                
                 st.markdown(f"""
-                    <div style='background: #F9FAFB; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.25rem; border-left: 3px solid {color};'>
-                        <div style='font-size: 0.875rem;'><strong>{name}</strong>{recommended}</div>
-                        <div style='font-size: 0.75rem; color: #6B7280;'>{cases} active cases</div>
+                    <div class='officer-card' style='background: {bg_color}; border-left: 3px solid {color};'>
+                        <div style='display: flex; justify-content: space-between; align-items: center;'>
+                            <div>
+                                <div style='font-size: 0.875rem; font-weight: 600; color: #1F2937;'>{name}{recommended}</div>
+                                <div style='font-size: 0.75rem; color: #6B7280; margin-top: 0.125rem;'>{cases} active cases</div>
+                            </div>
+                            <div style='width: 40px; height: 40px; border-radius: 50%; background: {color}20; 
+                                        display: flex; align-items: center; justify-content: center;
+                                        font-size: 0.875rem; font-weight: 700; color: {color};'>
+                                {cases}
+                            </div>
+                        </div>
                     </div>
                 """, unsafe_allow_html=True)
         
         # ===== OVERRIDE REASON CAPTURE =====
         if st.session_state.get('show_override_form', False):
-            st.divider()
-            st.markdown("### 📝 Override Reason (Optional)")
-            st.caption("Help us improve recommendations by explaining your decision")
+            st.markdown("""
+                <div class='dialog-container'>
+                    <div style='margin-bottom: 1.5rem;'>
+                        <div style='font-size: 1.25rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
+                            📝 Override Reason
+                        </div>
+                        <div style='font-size: 0.875rem; color: #6B7280;'>
+                            Help us improve recommendations by explaining your decision
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
             
             col1, col2 = st.columns([3, 1])
             
@@ -1096,13 +1282,13 @@ if page == "Action Center":
                     "Other (specify in notes)"
                 ]
                 
-                override_reason = st.selectbox("Reason", override_categories)
-                override_notes = st.text_area("Additional notes (optional)", height=80)
+                override_reason = st.selectbox("Reason", override_categories, label_visibility="collapsed")
+                override_notes = st.text_area("Additional notes (optional)", height=100, placeholder="Provide additional context for this decision...")
             
             with col2:
                 st.write("")
                 st.write("")
-                if st.button("✅ Confirm & Execute", type="primary", use_container_width=True):
+                if st.button("✅ Confirm & Execute", type="primary", use_container_width=True, key="confirm_intervention"):
                     with st.spinner("Creating interventions..."):
                         try:
                             from sqlalchemy import text
@@ -1185,8 +1371,202 @@ if page == "Action Center":
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
                 
-                if st.button("❌ Cancel", use_container_width=True):
+                if st.button("❌ Cancel", use_container_width=True, key="cancel_intervention"):
                     st.session_state['show_override_form'] = False
+                    st.rerun()
+        
+        # ===== ASSIGN TO OFFICERS DIALOG =====
+        if st.session_state.get('show_assignment_panel', False):
+            st.markdown("""
+                <div class='dialog-container'>
+                    <div style='margin-bottom: 1.5rem;'>
+                        <div style='font-size: 1.25rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
+                            👥 Assign to Risk Officers
+                        </div>
+                        <div style='font-size: 0.875rem; color: #6B7280;'>
+                            Distribute workload across available officers
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                # Determine customers to assign
+                if bulk_mode:
+                    assign_customers = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]
+                else:
+                    target_ids = st.session_state.get('selected_customers', [])
+                    assign_customers = df[df['customer_id'].isin(target_ids)]
+                
+                # Filter out cool-down customers
+                assign_customers = assign_customers[~assign_customers['customer_id'].isin(recently_contacted)]
+                
+                st.markdown(f"""
+                    <div class='info-banner'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <div style='font-size: 1.5rem;'>📊</div>
+                            <div style='font-size: 0.875rem; color: #4338CA; font-weight: 600;'>
+                                Assigning {len(assign_customers)} customers
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # Officer selection
+                officers_list = [
+                    "A. Iyer (5 cases) ✓ Recommended",
+                    "M. Kumar (7 cases) ✓ Recommended",
+                    "K. Mehta (9 cases)",
+                    "R. Sharma (12 cases)",
+                    "P. Singh (15 cases)"
+                ]
+                
+                selected_officer = st.selectbox("Select Risk Officer", officers_list)
+                
+                # Assignment strategy
+                assignment_strategy = st.radio(
+                    "Assignment Strategy",
+                    ["Assign all to selected officer", "Auto-distribute by capacity", "Manual assignment"],
+                    horizontal=True
+                )
+                
+                assignment_notes = st.text_area(
+                    "Assignment notes (optional)", 
+                    height=100, 
+                    placeholder="Reason for assignment, special instructions, priority notes..."
+                )
+            
+            with col2:
+                st.write("")
+                st.write("")
+                st.write("")
+                if st.button("✅ Confirm Assignment", type="primary", use_container_width=True, key="confirm_assignment"):
+                    with st.spinner("Assigning customers..."):
+                        try:
+                            from sqlalchemy import text
+                            import uuid
+                            
+                            if engine:
+                                officer_name = selected_officer.split(' (')[0]  # Extract name
+                                
+                                with engine.begin() as conn:
+                                    for _, row in assign_customers.iterrows():
+                                        conn.execute(text("""
+                                            INSERT INTO customer_assignments (customer_id, assigned_to, assigned_by, 
+                                                                             risk_level, risk_score, status, notes)
+                                            VALUES (:cid, :officer, :assigned_by, :risk_level, :risk_score, 'active', :notes)
+                                        """), {
+                                            'cid': row['customer_id'],
+                                            'officer': officer_name,
+                                            'assigned_by': 'Risk Manager',
+                                            'risk_level': row['risk_level'],
+                                            'risk_score': float(row['risk_score']),
+                                            'notes': assignment_notes if assignment_notes else None
+                                        })
+                                
+                                st.success(f"✅ Assigned {len(assign_customers)} customers to {officer_name}")
+                                
+                                # Clear form
+                                st.session_state['show_assignment_panel'] = False
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {str(e)}")
+                
+                if st.button("❌ Cancel", use_container_width=True, key="cancel_assignment"):
+                    st.session_state['show_assignment_panel'] = False
+                    st.rerun()
+        
+        # ===== EXPORT QUEUE DIALOG =====
+        if st.session_state.get('show_export_dialog', False):
+            st.markdown("""
+                <div class='dialog-container'>
+                    <div style='margin-bottom: 1.5rem;'>
+                        <div style='font-size: 1.25rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
+                            📊 Export Action Queue
+                        </div>
+                        <div style='font-size: 0.875rem; color: #6B7280;'>
+                            Download priority queue for offline review and analysis
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                # Export options
+                export_format = st.radio("Export Format", ["CSV", "Excel (XLSX)", "JSON"], horizontal=True)
+                
+                include_options = st.multiselect(
+                    "Include Additional Data",
+                    ["Risk drivers", "Historical scores", "Intervention history", "Assignment history"],
+                    default=["Risk drivers"]
+                )
+                
+                # Prepare export data
+                if bulk_mode:
+                    export_df = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])].copy()
+                else:
+                    target_ids = st.session_state.get('selected_customers', [])
+                    export_df = df[df['customer_id'].isin(target_ids)].copy()
+                
+                # Add urgency score if not present
+                if 'urgency_score' not in export_df.columns:
+                    export_df['urgency_score'] = (export_df['risk_score'] * 0.6) + ((30 - export_df.get('days_to_delinquency', 15)) / 30 * 0.3)
+                
+                st.markdown(f"""
+                    <div class='info-banner'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <div style='font-size: 1.5rem;'>📋</div>
+                            <div style='font-size: 0.875rem; color: #4338CA; font-weight: 600;'>
+                                Exporting {len(export_df)} customers
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # Preview
+                with st.expander("🔍 Preview Export Data"):
+                    preview_cols = ['customer_id', 'risk_score', 'risk_level', 'urgency_score', 'top_feature_1']
+                    st.dataframe(export_df[preview_cols].head(10), use_container_width=True, hide_index=True)
+            
+            with col2:
+                st.write("")
+                st.write("")
+                
+                # Generate export file
+                if export_format == "CSV":
+                    export_data = export_df.to_csv(index=False)
+                    file_ext = "csv"
+                    mime_type = "text/csv"
+                elif export_format == "Excel (XLSX)":
+                    import io
+                    buffer = io.BytesIO()
+                    export_df.to_excel(buffer, index=False, engine='openpyxl')
+                    export_data = buffer.getvalue()
+                    file_ext = "xlsx"
+                    mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                else:  # JSON
+                    export_data = export_df.to_json(orient='records', indent=2)
+                    file_ext = "json"
+                    mime_type = "application/json"
+                
+                filename = f"action_queue_{datetime.now().strftime('%Y%m%d_%H%M')}.{file_ext}"
+                
+                st.download_button(
+                    label=f"⬇️ Download {export_format}",
+                    data=export_data,
+                    file_name=filename,
+                    mime=mime_type,
+                    type="primary",
+                    use_container_width=True,
+                    key="download_export"
+                )
+                
+                if st.button("❌ Close", use_container_width=True, key="close_export"):
+                    st.session_state['show_export_dialog'] = False
                     st.rerun()
         
         st.divider()
@@ -1198,12 +1578,30 @@ if page == "Action Center":
         likely_delinquent_72h = int(len(urgent_3days) * 0.85)
         expected_loss_exposure = likely_delinquent_72h * loss_per_default
         
-        st.error(f"""
-        **If no action is taken:**
-        - {likely_delinquent_72h} customers likely delinquent in 72h
-        - Expected loss exposure: ${expected_loss_exposure:,.0f}
-        - Portfolio impact: {(likely_delinquent_72h/len(df)*100):.1f}% default rate
-        """)
+        st.markdown(f"""
+            <div class='error-banner'>
+                <div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; color: #991B1B;'>
+                    ⚠️ Critical: Action Required Within 72 Hours
+                </div>
+                <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1rem;'>
+                    <div>
+                        <div style='font-size: 0.75rem; color: #7F1D1D; text-transform: uppercase; letter-spacing: 0.5px;'>Likely Delinquent</div>
+                        <div style='font-size: 1.75rem; font-weight: 700; color: #DC2626;'>{likely_delinquent_72h}</div>
+                        <div style='font-size: 0.75rem; color: #991B1B;'>customers in 72h</div>
+                    </div>
+                    <div>
+                        <div style='font-size: 0.75rem; color: #7F1D1D; text-transform: uppercase; letter-spacing: 0.5px;'>Expected Loss</div>
+                        <div style='font-size: 1.75rem; font-weight: 700; color: #DC2626;'>${expected_loss_exposure:,.0f}</div>
+                        <div style='font-size: 0.75rem; color: #991B1B;'>financial exposure</div>
+                    </div>
+                    <div>
+                        <div style='font-size: 0.75rem; color: #7F1D1D; text-transform: uppercase; letter-spacing: 0.5px;'>Portfolio Impact</div>
+                        <div style='font-size: 1.75rem; font-weight: 700; color: #DC2626;'>{(likely_delinquent_72h/len(df)*100):.1f}%</div>
+                        <div style='font-size: 0.75rem; color: #991B1B;'>default rate</div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
         
         st.divider()
         

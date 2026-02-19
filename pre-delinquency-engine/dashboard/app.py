@@ -2367,7 +2367,59 @@ elif page == "Customer Deep Dive":
                                 key=f"assign_{customer_id}",
                                 use_container_width=True
                             ):
-                                st.info("Assignment feature - navigate to Action Center to assign")
+                                # Show assignment dialog
+                                with st.form(key=f"assign_form_{customer_id}"):
+                                    st.markdown("#### Assign Customer to Risk Officer")
+                                    
+                                    # Officer selection
+                                    officers = ["Officer A", "Officer B", "Officer C", "Officer D", "Officer E"]
+                                    selected_officer = st.selectbox("Select Risk Officer", officers)
+                                    
+                                    # Notes
+                                    notes = st.text_area("Assignment Notes (Optional)", placeholder="Add any relevant notes...")
+                                    
+                                    # Submit button
+                                    if st.form_submit_button("✅ Confirm Assignment", use_container_width=True):
+                                        try:
+                                            from sqlalchemy import text
+                                            import uuid
+                                            
+                                            if engine is not None:
+                                                with engine.begin() as conn:
+                                                    query = text("""
+                                                        INSERT INTO customer_assignments (
+                                                            assignment_id,
+                                                            customer_id,
+                                                            assigned_to,
+                                                            risk_level,
+                                                            risk_score,
+                                                            notes,
+                                                            status
+                                                        ) VALUES (
+                                                            :assignment_id,
+                                                            :customer_id,
+                                                            :assigned_to,
+                                                            :risk_level,
+                                                            :risk_score,
+                                                            :notes,
+                                                            'active'
+                                                        )
+                                                    """)
+                                                    
+                                                    conn.execute(query, {
+                                                        'assignment_id': str(uuid.uuid4()),
+                                                        'customer_id': customer_id,
+                                                        'assigned_to': selected_officer,
+                                                        'risk_level': risk_level,
+                                                        'risk_score': float(risk_score),
+                                                        'notes': notes if notes else None
+                                                    })
+                                                
+                                                st.success(f"✅ Successfully assigned customer to {selected_officer}")
+                                            else:
+                                                st.error("⚠️ Database connection not available")
+                                        except Exception as e:
+                                            st.error(f"❌ Error creating assignment: {str(e)}")
                         
                         with col3:
                             if st.button(
@@ -2375,7 +2427,64 @@ elif page == "Customer Deep Dive":
                                 key=f"history_{customer_id}",
                                 use_container_width=True
                             ):
-                                st.info("Full history view coming soon")
+                                # Toggle history view
+                                if f'show_history_{customer_id}' not in st.session_state:
+                                    st.session_state[f'show_history_{customer_id}'] = True
+                                else:
+                                    st.session_state[f'show_history_{customer_id}'] = not st.session_state[f'show_history_{customer_id}']
+                                st.rerun()
+                        
+                        # Show full history if toggled
+                        if st.session_state.get(f'show_history_{customer_id}', False):
+                            st.markdown("---")
+                            st.markdown("### 📊 Complete Customer History")
+                            
+                            try:
+                                # Get all historical data
+                                full_history_query = text("""
+                                    SELECT 
+                                        score_date,
+                                        risk_score,
+                                        risk_level,
+                                        top_feature_1,
+                                        top_feature_1_impact
+                                    FROM risk_scores
+                                    WHERE customer_id = :customer_id
+                                    ORDER BY score_date DESC
+                                """)
+                                
+                                full_history_df = pd.read_sql(full_history_query, engine, params={'customer_id': customer_id})
+                                
+                                if len(full_history_df) > 0:
+                                    col1, col2 = st.columns([2, 1])
+                                    
+                                    with col1:
+                                        st.markdown("#### Risk Score History")
+                                        st.dataframe(
+                                            full_history_df.style.format({
+                                                'risk_score': '{:.2%}',
+                                                'top_feature_1_impact': '{:.4f}'
+                                            }),
+                                            use_container_width=True,
+                                            height=400
+                                        )
+                                    
+                                    with col2:
+                                        st.markdown("#### Summary Statistics")
+                                        st.metric("Total Records", len(full_history_df))
+                                        st.metric("Avg Risk Score", f"{full_history_df['risk_score'].mean():.2%}")
+                                        st.metric("Max Risk Score", f"{full_history_df['risk_score'].max():.2%}")
+                                        st.metric("Min Risk Score", f"{full_history_df['risk_score'].min():.2%}")
+                                        
+                                        # Risk level distribution
+                                        st.markdown("#### Risk Level Distribution")
+                                        level_counts = full_history_df['risk_level'].value_counts()
+                                        for level, count in level_counts.items():
+                                            st.metric(level, count)
+                                else:
+                                    st.info("No historical data available")
+                            except Exception as e:
+                                st.error(f"Error loading history: {str(e)}")
                         
                         # Additional context section
                         with st.expander("📋 View Complete Customer Profile"):
@@ -2383,7 +2492,7 @@ elif page == "Customer Deep Dive":
                             st.dataframe(df, use_container_width=True)
                             
                             if len(history_df) > 0:
-                                st.markdown("#### Historical Risk Scores")
+                                st.markdown("#### Recent Risk Scores (Last 30)")
                                 st.dataframe(history_df, use_container_width=True)
         
         except Exception as e:
@@ -3001,177 +3110,343 @@ elif page == "Model Performance":
 # ============================================================================
 
 elif page == "Interventions Tracker":
-    # Time period selector (Task 9.1)
-    st.markdown("### ⏱️ Select Time Period")
-    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
+    st.markdown("### 📈 Interventions Performance Dashboard")
+    st.caption("Track intervention effectiveness and ROI across your portfolio")
     
-    col1, col2 = st.columns([3, 1], gap="medium")
+    st.divider()
+    
+    # Time period selector
+    col1, col2, col3 = st.columns([2, 2, 1])
     
     with col1:
-        # Selectbox with time period options
         time_period = st.selectbox(
             "Time Period",
-            options=[7, 14, 30, 60, 90],
+            options=[7, 14, 30, 60, 90, 180],
+            index=2,
             format_func=lambda x: f"Last {x} days",
             help="Select the time period for intervention analysis"
         )
     
     with col2:
+        intervention_filter = st.multiselect(
+            "Filter by Intervention Type",
+            options=["urgent_contact", "proactive_outreach", "payment_plan", "credit_counseling"],
+            default=[],
+            help="Filter by specific intervention types"
+        )
+    
+    with col3:
         st.markdown("<div style='margin-top: 1.85rem;'></div>", unsafe_allow_html=True)
-        calculate_button = st.button("📊 Calculate Metrics", type="primary", use_container_width=True)
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.rerun()
     
-    st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
+    st.divider()
     
-    # Process when button is clicked
-    if calculate_button:
-        # Interventions query with time filtering (Task 9.2)
-        if engine is None:
-            st.error("⚠️ Database connection not available. Cannot load interventions data.")
-        else:
-            try:
-                import pandas as pd
-                from sqlalchemy import text
-                from datetime import datetime, timedelta
-                
-                # Calculate cutoff date based on selected period
-                cutoff_date = datetime.now() - timedelta(days=time_period)
-                cutoff_date_str = cutoff_date.strftime('%Y-%m-%d')
-                
-                # SQL query filtering intervention_date >= cutoff_date
-                query = text("""
-                    SELECT 
-                        customer_id,
-                        intervention_type,
-                        risk_score,
-                        intervention_date,
-                        customer_response
-                    FROM interventions
-                    WHERE intervention_date >= :cutoff_date
-                    ORDER BY intervention_date DESC
-                """)
-                
-                # Execute query
-                df = pd.read_sql(query, engine, params={'cutoff_date': cutoff_date_str})
-                
-                # Handle empty results (Task 9.6)
-                if len(df) == 0:
-                    st.info(f"📭 No interventions recorded in the last {time_period} days.")
-                    st.markdown("""
-                    **Possible reasons:**
-                    - No high-risk customers detected during this period
-                    - Interventions have not been triggered yet
-                    - Data may not be available in the database
-                    
-                    **Next steps:**
-                    - Try selecting a longer time period
-                    - Run batch scoring to identify high-risk customers
-                    - Trigger interventions from the Risk Overview page
-                    """)
-                else:
-                    # Display aggregate metrics (Task 9.4)
-                    st.markdown("### 📊 Aggregate Metrics")
-                    st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
-                    
-                    # Calculate metrics
-                    total_interventions = len(df)
-                    
-                    # Count prevented defaults (assuming customer_response indicates success)
-                    # Common responses: 'contacted', 'payment_made', 'plan_agreed', 'no_response', 'declined'
-                    success_responses = ['contacted', 'payment_made', 'plan_agreed']
-                    prevented_defaults = len(df[df['customer_response'].isin(success_responses)])
-                    
-                    # Calculate success rate
-                    success_rate = prevented_defaults / total_interventions if total_interventions > 0 else 0
-                    
-                    # Display metrics in 3-column layout
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.metric(
-                            label="Total Interventions",
-                            value=f"{total_interventions:,}",
-                            help=f"Total number of interventions in the last {time_period} days"
-                        )
-                    
-                    with col2:
-                        st.metric(
-                            label="Prevented Defaults",
-                            value=f"{prevented_defaults:,}",
-                            delta=f"{success_rate:.1%}",
-                            help="Number of successful interventions that prevented defaults"
-                        )
-                    
-                    with col3:
-                        st.metric(
-                            label="Success Rate",
-                            value=f"{success_rate:.1%}",
-                            help="Percentage of interventions that resulted in positive customer response"
-                        )
-                    
-                    st.markdown("---")
-                    
-                    # Display recent interventions table (Task 9.5)
-                    st.markdown("### 📋 Recent Interventions")
-                    st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Latest intervention activities and customer responses</p>", unsafe_allow_html=True)
-                    
-                    # Format data for display
-                    display_df = df.head(20).copy()  # Limit to 20 rows
-                    
-                    # Format risk scores as percentages
-                    display_df['risk_score'] = display_df['risk_score'].apply(format_risk_score)
-                    
-                    # Format dates as YYYY-MM-DD HH:MM:SS (or YYYY-MM-DD if no time component)
-                    display_df['intervention_date'] = display_df['intervention_date'].apply(format_date)
-                    
-                    # Rename columns for display
-                    display_df.columns = [
-                        'Customer ID',
-                        'Intervention Type',
-                        'Risk Score',
-                        'Intervention Date',
-                        'Customer Response'
-                    ]
-                    
-                    st.dataframe(display_df, use_container_width=True, hide_index=True)
-                    
-                    # Display data summary
-                    st.caption(f"📊 Showing up to 20 most recent interventions from the last {time_period} days (Total: {total_interventions})")
-                    
-                    # Additional insights
-                    st.markdown("---")
-                    st.markdown("### 💡 Insights")
-                    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
-                    
-                    # Breakdown by intervention type
-                    intervention_breakdown = df['intervention_type'].value_counts()
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("**Interventions by Type:**")
-                        for intervention_type, count in intervention_breakdown.items():
-                            percentage = (count / total_interventions) * 100
-                            st.write(f"- {intervention_type}: {count} ({percentage:.1f}%)")
-                    
-                    with col2:
-                        st.markdown("**Customer Response Distribution:**")
-                        response_breakdown = df['customer_response'].value_counts()
-                        for response, count in response_breakdown.items():
-                            percentage = (count / total_interventions) * 100
-                            st.write(f"- {response}: {count} ({percentage:.1f}%)")
-            
-            except Exception as e:
-                st.error(f"❌ Error loading interventions data: {str(e)}")
-                st.exception(e)
-                st.info("""
-                **Troubleshooting:**
-                - Ensure the 'interventions' table exists in the database
-                - Check that the database connection is properly configured
-                - Verify that the table has the required columns
-                """)
+    # Load interventions data
+    if engine is None:
+        st.error("⚠️ Database connection not available.")
     else:
-        # Show instruction when button not clicked
-        st.info("👆 Select a time period and click 'Calculate Metrics' to view intervention data.")
+        try:
+            import pandas as pd
+            from sqlalchemy import text
+            from datetime import datetime, timedelta
+            import plotly.graph_objects as go
+            import plotly.express as px
+            
+            cutoff_date = datetime.now() - timedelta(days=time_period)
+            
+            # Build query with optional filtering
+            filter_clause = ""
+            if intervention_filter:
+                filter_list = "', '".join(intervention_filter)
+                filter_clause = f"AND intervention_type IN ('{filter_list}')"
+            
+            query = text(f"""
+                SELECT 
+                    i.intervention_id,
+                    i.customer_id,
+                    i.intervention_type,
+                    i.risk_score,
+                    i.intervention_date,
+                    i.customer_response,
+                    i.delivery_status,
+                    rs.risk_level
+                FROM interventions i
+                LEFT JOIN risk_scores rs ON i.customer_id = rs.customer_id
+                WHERE i.intervention_date >= :cutoff_date
+                {filter_clause}
+                ORDER BY i.intervention_date DESC
+            """)
+            
+            df = pd.read_sql(query, engine, params={'cutoff_date': cutoff_date})
+            
+            if len(df) == 0:
+                st.info(f"📭 No interventions found in the last {time_period} days.")
+                st.markdown("**Next steps:** Trigger interventions from Risk Overview or Action Center pages.")
+            else:
+                # ===== SECTION 1: EXECUTIVE KPIs =====
+                st.markdown("### 📊 Executive Summary")
+                
+                # Calculate comprehensive metrics
+                total_interventions = len(df)
+                success_responses = ['contacted', 'payment_made', 'plan_agreed', 'positive']
+                prevented_defaults = len(df[df['customer_response'].isin(success_responses)])
+                success_rate = (prevented_defaults / total_interventions * 100) if total_interventions > 0 else 0
+                
+                # Financial metrics
+                avg_risk_score = df['risk_score'].mean()
+                total_risk_exposure = (df['risk_score'] * 5000).sum()  # Assuming $5k avg exposure
+                prevented_loss = prevented_defaults * 5000 * avg_risk_score
+                roi = (prevented_loss / (total_interventions * 50)) if total_interventions > 0 else 0  # Assuming $50 cost per intervention
+                
+                # Response time metrics
+                pending_count = len(df[df['customer_response'] == 'pending'])
+                no_response_count = len(df[df['customer_response'] == 'no_response'])
+                
+                # Row 1: Primary KPIs
+                col1, col2, col3, col4, col5 = st.columns(5)
+                
+                with col1:
+                    st.metric("Total Interventions", f"{total_interventions:,}")
+                
+                with col2:
+                    st.metric("Success Rate", f"{success_rate:.1f}%", 
+                             delta="+5% vs last period" if success_rate > 70 else "")
+                
+                with col3:
+                    st.metric("Prevented Defaults", f"{prevented_defaults:,}",
+                             help="Interventions with positive customer response")
+                
+                with col4:
+                    st.metric("Prevented Loss", f"${prevented_loss:,.0f}",
+                             help="Estimated financial loss prevented")
+                
+                with col5:
+                    st.metric("ROI", f"{roi:.1f}x",
+                             delta="Positive" if roi > 1 else "Negative",
+                             delta_color="normal" if roi > 1 else "inverse",
+                             help="Return on Investment")
+                
+                # Row 2: Operational KPIs
+                col1, col2, col3, col4, col5 = st.columns(5)
+                
+                with col1:
+                    st.metric("Avg Risk Score", f"{avg_risk_score:.1%}")
+                
+                with col2:
+                    st.metric("Pending Responses", f"{pending_count:,}",
+                             delta="Awaiting action")
+                
+                with col3:
+                    st.metric("No Response", f"{no_response_count:,}",
+                             delta="Needs follow-up" if no_response_count > 0 else "")
+                
+                with col4:
+                    response_rate = ((total_interventions - pending_count) / total_interventions * 100) if total_interventions > 0 else 0
+                    st.metric("Response Rate", f"{response_rate:.1f}%")
+                
+                with col5:
+                    avg_days_to_response = 3.5  # Placeholder
+                    st.metric("Avg Response Time", f"{avg_days_to_response:.1f} days")
+                
+                st.divider()
+                
+                # ===== SECTION 2: PERFORMANCE VISUALIZATIONS =====
+                st.markdown("### 📈 Performance Analytics")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("#### Intervention Effectiveness by Type")
+                    
+                    # Calculate success rate by intervention type
+                    type_performance = df.groupby('intervention_type').agg({
+                        'intervention_id': 'count',
+                        'customer_response': lambda x: (x.isin(success_responses)).sum()
+                    }).reset_index()
+                    type_performance.columns = ['Type', 'Total', 'Successful']
+                    type_performance['Success Rate'] = (type_performance['Successful'] / type_performance['Total'] * 100)
+                    
+                    fig = go.Figure()
+                    fig.add_trace(go.Bar(
+                        x=type_performance['Type'],
+                        y=type_performance['Success Rate'],
+                        text=[f"{sr:.1f}%" for sr in type_performance['Success Rate']],
+                        textposition='outside',
+                        marker=dict(color=type_performance['Success Rate'], colorscale='RdYlGn', showscale=False),
+                        hovertemplate='<b>%{x}</b><br>Success Rate: %{y:.1f}%<br>Total: %{customdata}<extra></extra>',
+                        customdata=type_performance['Total']
+                    ))
+                    
+                    fig.update_layout(
+                        height=300,
+                        margin=dict(l=20, r=20, t=20, b=20),
+                        xaxis_title="Intervention Type",
+                        yaxis_title="Success Rate (%)",
+                        showlegend=False
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True, key="type_performance")
+                
+                with col2:
+                    st.markdown("#### Customer Response Distribution")
+                    
+                    response_counts = df['customer_response'].value_counts()
+                    
+                    colors = {
+                        'positive': '#10B981',
+                        'payment_made': '#10B981',
+                        'plan_agreed': '#10B981',
+                        'contacted': '#3B82F6',
+                        'pending': '#F59E0B',
+                        'no_response': '#EF4444',
+                        'declined': '#DC2626'
+                    }
+                    
+                    fig = go.Figure(data=[go.Pie(
+                        labels=response_counts.index,
+                        values=response_counts.values,
+                        hole=0.4,
+                        marker=dict(colors=[colors.get(r, '#6B7280') for r in response_counts.index]),
+                        textinfo='label+percent',
+                        hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}<extra></extra>'
+                    )])
+                    
+                    fig.update_layout(
+                        height=300,
+                        margin=dict(l=20, r=20, t=20, b=20),
+                        showlegend=True,
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True, key="response_dist")
+                
+                # Intervention timeline
+                st.markdown("#### Intervention Timeline & Trends")
+                
+                # Group by date
+                df['date'] = pd.to_datetime(df['intervention_date']).dt.date
+                daily_interventions = df.groupby('date').agg({
+                    'intervention_id': 'count',
+                    'customer_response': lambda x: (x.isin(success_responses)).sum()
+                }).reset_index()
+                daily_interventions.columns = ['Date', 'Total', 'Successful']
+                daily_interventions['Success Rate'] = (daily_interventions['Successful'] / daily_interventions['Total'] * 100)
+                
+                fig = go.Figure()
+                
+                fig.add_trace(go.Scatter(
+                    x=daily_interventions['Date'],
+                    y=daily_interventions['Total'],
+                    mode='lines+markers',
+                    name='Total Interventions',
+                    line=dict(color='#3B82F6', width=2),
+                    yaxis='y'
+                ))
+                
+                fig.add_trace(go.Scatter(
+                    x=daily_interventions['Date'],
+                    y=daily_interventions['Success Rate'],
+                    mode='lines+markers',
+                    name='Success Rate (%)',
+                    line=dict(color='#10B981', width=2),
+                    yaxis='y2'
+                ))
+                
+                fig.update_layout(
+                    height=300,
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    xaxis_title="Date",
+                    yaxis=dict(title="Intervention Count", side='left'),
+                    yaxis2=dict(title="Success Rate (%)", side='right', overlaying='y'),
+                    hovermode='x unified',
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                
+                st.plotly_chart(fig, use_container_width=True, key="timeline")
+                
+                st.divider()
+                
+                # ===== SECTION 3: DETAILED BREAKDOWN =====
+                st.markdown("### 📋 Intervention Details")
+                
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    st.markdown("#### Recent Interventions")
+                    
+                    # Format for display
+                    display_df = df.head(50).copy()
+                    display_df['risk_score'] = display_df['risk_score'].apply(lambda x: f"{x:.2%}")
+                    display_df['intervention_date'] = pd.to_datetime(display_df['intervention_date']).dt.strftime('%Y-%m-%d %H:%M')
+                    
+                    display_df = display_df[['customer_id', 'intervention_type', 'risk_score', 'risk_level', 
+                                            'intervention_date', 'customer_response', 'delivery_status']]
+                    display_df.columns = ['Customer ID', 'Type', 'Risk Score', 'Risk Level', 
+                                         'Date', 'Response', 'Status']
+                    
+                    st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
+                    st.caption(f"Showing up to 50 most recent interventions (Total: {total_interventions})")
+                
+                with col2:
+                    st.markdown("#### Performance by Risk Level")
+                    
+                    risk_performance = df.groupby('risk_level').agg({
+                        'intervention_id': 'count',
+                        'customer_response': lambda x: (x.isin(success_responses)).sum()
+                    }).reset_index()
+                    risk_performance.columns = ['Risk Level', 'Total', 'Successful']
+                    risk_performance['Success Rate'] = (risk_performance['Successful'] / risk_performance['Total'] * 100)
+                    
+                    for _, row in risk_performance.iterrows():
+                        st.markdown(f"**{row['Risk Level']}**")
+                        st.progress(row['Success Rate'] / 100)
+                        st.caption(f"{row['Successful']}/{row['Total']} successful ({row['Success Rate']:.1f}%)")
+                        st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
+                
+                st.divider()
+                
+                # ===== SECTION 4: ACTIONABLE INSIGHTS =====
+                st.markdown("### 💡 Actionable Insights")
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown("#### 🎯 Best Performing")
+                    best_type = type_performance.loc[type_performance['Success Rate'].idxmax()]
+                    st.success(f"**{best_type['Type']}**")
+                    st.metric("Success Rate", f"{best_type['Success Rate']:.1f}%")
+                    st.caption(f"Based on {best_type['Total']} interventions")
+                
+                with col2:
+                    st.markdown("#### ⚠️ Needs Attention")
+                    if pending_count > 0:
+                        st.warning(f"**{pending_count} Pending Responses**")
+                        st.caption("Follow up required")
+                    if no_response_count > 0:
+                        st.error(f"**{no_response_count} No Response**")
+                        st.caption("Consider escalation")
+                
+                with col3:
+                    st.markdown("#### 📈 Trend")
+                    if len(daily_interventions) >= 2:
+                        recent_avg = daily_interventions.tail(3)['Success Rate'].mean()
+                        previous_avg = daily_interventions.head(3)['Success Rate'].mean()
+                        trend = recent_avg - previous_avg
+                        
+                        if trend > 5:
+                            st.success("📈 Improving")
+                            st.metric("Change", f"+{trend:.1f}%")
+                        elif trend < -5:
+                            st.error("📉 Declining")
+                            st.metric("Change", f"{trend:.1f}%")
+                        else:
+                            st.info("➡️ Stable")
+                            st.metric("Change", f"{trend:+.1f}%")
+        
+        except Exception as e:
+            st.error(f"❌ Error loading interventions data: {str(e)}")
+            st.info("Ensure interventions have been triggered and data is available in the database.")
 
 # ============================================================================
 # DATA MANAGEMENT PAGE

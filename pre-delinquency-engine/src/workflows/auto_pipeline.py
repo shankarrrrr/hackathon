@@ -25,32 +25,43 @@ DB_CONFIG = {
 }
 
 def log(msg):
-    """Print with timestamp"""
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+    """Print with timestamp to stderr"""
+    import sys
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", file=sys.stderr)
 
 def generate_customers(n=100):
     """Generate synthetic customers"""
     log(f"📊 Generating {n} synthetic customers...")
     
-    from src.data_generation.behavioral_simulator_v2 import AdvancedBehavioralSimulator, SimulationConfig
+    import sys
+    import io
     
-    config = SimulationConfig(
-        n_customers=n,
-        min_weeks=8,
-        max_weeks=16,
-        target_positive_rate=0.20,
-        use_autocorrelation=True,
-        autocorr_strength=0.7,
-        enable_shocks=True,
-        shock_probability=0.05,
-        use_float32=True
-    )
+    # Suppress simulator output
+    old_stdout = sys.stdout
+    sys.stdout = io.StringIO()
     
-    simulator = AdvancedBehavioralSimulator(config)
-    df = simulator.generate_dataset()
-    
-    log(f"✅ Generated {len(df)} customers")
-    return df
+    try:
+        from src.data_generation.behavioral_simulator_v2 import AdvancedBehavioralSimulator, SimulationConfig
+        
+        config = SimulationConfig(
+            n_customers=n,
+            min_weeks=8,
+            max_weeks=16,
+            target_positive_rate=0.20,
+            use_autocorrelation=True,
+            autocorr_strength=0.7,
+            enable_shocks=True,
+            shock_probability=0.05,
+            use_float32=True
+        )
+        
+        simulator = AdvancedBehavioralSimulator(config)
+        df = simulator.generate_dataset()
+        
+        log(f"✅ Generated {len(df)} customers")
+        return df
+    finally:
+        sys.stdout = old_stdout
 
 def load_to_database(df):
     """Load customers to PostgreSQL"""

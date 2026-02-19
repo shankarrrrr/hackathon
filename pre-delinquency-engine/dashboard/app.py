@@ -1177,7 +1177,7 @@ elif page == "Risk Overview":
                 bucket_counts = risk_buckets.value_counts().sort_index()
                 
                 fig = go.Figure(data=[go.Bar(
-                    x=bucket_counts.index,
+                    x=bucket_counts.index.astype(str),
                     y=bucket_counts.values,
                     marker=dict(
                         color=['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#7F1D1D'],
@@ -1196,13 +1196,30 @@ elif page == "Risk Overview":
                 )
                 
                 st.plotly_chart(fig, use_container_width=True, key="risk_concentration")
-            except:
+            except Exception as e:
+                # Fallback display
                 st.info("Chart unavailable")
+                try:
+                    low = len(df[df['risk_score'] < 0.3])
+                    medium = len(df[(df['risk_score'] >= 0.3) & (df['risk_score'] < 0.6)])
+                    high = len(df[(df['risk_score'] >= 0.6) & (df['risk_score'] < 0.8)])
+                    critical = len(df[df['risk_score'] >= 0.8])
+                    
+                    st.metric("Low (0-30%)", f"{low:,}")
+                    st.metric("Medium (30-60%)", f"{medium:,}")
+                    st.metric("High (60-80%)", f"{high:,}")
+                    st.metric("Critical (80%+)", f"{critical:,}")
+                except:
+                    pass
         
         st.divider()
         
         # ===== SECTION 3: TREND ANALYSIS =====
         st.markdown("### 📈 Risk Trend Analysis")
+        
+        # Initialize variables for use in insights section
+        trend_df = pd.DataFrame()
+        trend_change = 0
         
         try:
             from sqlalchemy import text
@@ -1258,8 +1275,8 @@ elif page == "Risk Overview":
                         st.plotly_chart(fig, use_container_width=True, key="risk_trend")
                         
                         # Trend statistics
-                        recent_avg = trend_df.iloc[-1]['avg_risk']
-                        previous_avg = trend_df.iloc[0]['avg_risk']
+                        recent_avg = float(trend_df.iloc[-1]['avg_risk'])
+                        previous_avg = float(trend_df.iloc[0]['avg_risk'])
                         trend_change = recent_avg - previous_avg
                         
                         col_a, col_b, col_c = st.columns(3)
@@ -1338,51 +1355,55 @@ elif page == "Risk Overview":
         
         with col1:
             # Calculate portfolio-wide risk drivers
-            portfolio_drivers = calculate_portfolio_risk_drivers(df)
-            
-            if portfolio_drivers and len(portfolio_drivers) > 0:
-                st.markdown("#### Top Contributing Factors")
+            try:
+                portfolio_drivers = calculate_portfolio_risk_drivers(df)
                 
-                try:
-                    import plotly.graph_objects as go
+                # Check if portfolio_drivers is not None and not empty
+                if portfolio_drivers is not None and (isinstance(portfolio_drivers, list) and len(portfolio_drivers) > 0):
+                    st.markdown("#### Top Contributing Factors")
                     
-                    # Get top 10 drivers
-                    top_drivers = portfolio_drivers[:10]
-                    features = [d['feature'][:25] + '...' if len(d['feature']) > 25 else d['feature'] for d in top_drivers]
-                    contributions = [d['contribution_pct'] for d in top_drivers]
-                    customer_counts = [d['customer_count'] for d in top_drivers]
-                    
-                    fig = go.Figure()
-                    
-                    fig.add_trace(go.Bar(
-                        y=features[::-1],  # Reverse for better readability
-                        x=contributions[::-1],
-                        orientation='h',
-                        marker=dict(
-                            color=contributions[::-1],
-                            colorscale='Reds',
-                            showscale=False
-                        ),
-                        text=[f"{c:.1f}%" for c in contributions[::-1]],
-                        textposition='outside',
-                        customdata=customer_counts[::-1],
-                        hovertemplate='<b>%{y}</b><br>Contribution: %{x:.1f}%<br>Customers Affected: %{customdata}<extra></extra>'
-                    ))
-                    
-                    fig.update_layout(
-                        height=400,
-                        margin=dict(l=20, r=50, t=20, b=20),
-                        xaxis_title="Contribution to Portfolio Risk (%)",
-                        yaxis_title="",
-                        showlegend=False
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True, key="portfolio_drivers")
-                except:
-                    # Fallback display
-                    for driver in portfolio_drivers[:5]:
-                        st.markdown(f"**{driver['feature']}**: {driver['contribution_pct']:.1f}% ({driver['customer_count']} customers)")
-            else:
+                    try:
+                        import plotly.graph_objects as go
+                        
+                        # Get top 10 drivers
+                        top_drivers = portfolio_drivers[:10]
+                        features = [d['feature'][:25] + '...' if len(d['feature']) > 25 else d['feature'] for d in top_drivers]
+                        contributions = [d['contribution_pct'] for d in top_drivers]
+                        customer_counts = [d['customer_count'] for d in top_drivers]
+                        
+                        fig = go.Figure()
+                        
+                        fig.add_trace(go.Bar(
+                            y=features[::-1],  # Reverse for better readability
+                            x=contributions[::-1],
+                            orientation='h',
+                            marker=dict(
+                                color=contributions[::-1],
+                                colorscale='Reds',
+                                showscale=False
+                            ),
+                            text=[f"{c:.1f}%" for c in contributions[::-1]],
+                            textposition='outside',
+                            customdata=customer_counts[::-1],
+                            hovertemplate='<b>%{y}</b><br>Contribution: %{x:.1f}%<br>Customers Affected: %{customdata}<extra></extra>'
+                        ))
+                        
+                        fig.update_layout(
+                            height=400,
+                            margin=dict(l=20, r=50, t=20, b=20),
+                            xaxis_title="Contribution to Portfolio Risk (%)",
+                            yaxis_title="",
+                            showlegend=False
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True, key="portfolio_drivers")
+                    except Exception as e:
+                        # Fallback display
+                        for driver in portfolio_drivers[:5]:
+                            st.markdown(f"**{driver['feature']}**: {driver['contribution_pct']:.1f}% ({driver['customer_count']} customers)")
+                else:
+                    st.info("Risk driver analysis unavailable")
+            except Exception as e:
                 st.info("Risk driver analysis unavailable")
         
         with col2:
@@ -1415,16 +1436,19 @@ elif page == "Risk Overview":
                     "action": "Continue monitoring"
                 })
             
-            # Insight 2: Portfolio health trend
-            if len(trend_df) > 1:
-                trend_direction = "increasing" if trend_change > 0 else "decreasing" if trend_change < 0 else "stable"
-                if abs(trend_change) > 0.05:
-                    insights.append({
-                        "icon": "📈" if trend_change > 0 else "📉",
-                        "title": f"Risk {trend_direction.title()}",
-                        "message": f"{abs(trend_change):.1%} change in 30 days",
-                        "action": "Review intervention strategy" if trend_change > 0 else "Strategy working well"
-                    })
+            # Insight 2: Portfolio health trend (only if trend data exists)
+            try:
+                if 'trend_df' in locals() and len(trend_df) > 1 and 'trend_change' in locals():
+                    trend_direction = "increasing" if trend_change > 0 else "decreasing" if trend_change < 0 else "stable"
+                    if abs(trend_change) > 0.05:
+                        insights.append({
+                            "icon": "📈" if trend_change > 0 else "📉",
+                            "title": f"Risk {trend_direction.title()}",
+                            "message": f"{abs(trend_change):.1%} change in 30 days",
+                            "action": "Review intervention strategy" if trend_change > 0 else "Strategy working well"
+                        })
+            except:
+                pass
             
             # Insight 3: Expected loss concentration
             if expected_loss > total_exposure * 0.3:

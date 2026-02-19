@@ -19,19 +19,14 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
 # Virtual Environment
 venv/
 env/
 ENV/
-env.bak/
-venv.bak/
+.venv
 
-# Poetry
-poetry.lock
-
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -39,42 +34,37 @@ poetry.lock
 *~
 .DS_Store
 
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb
-
 # Environment variables
 .env
 .env.local
-.env.*.local
 
-# Data files (too large for git)
+# Data files (large)
 data/raw/*.csv
 data/processed/*.csv
-data/models/*.pkl
-data/models/*.json
-data/models/*.h5
-
-# Keep directory structure
-!data/raw/.gitkeep
-!data/processed/.gitkeep
+data/models/**/*.json
+data/models/**/*.pkl
 !data/models/.gitkeep
+
+# Logs
+*.log
+logs/
+*.pid
+api_pid.txt
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
 
 # MLflow
 mlruns/
 mlflow_data/
 
-# Logs
-*.log
-logs/
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Docker
-.dockerignore
+# Docker volumes
+postgres_data/
+redis_data/
+kafka_data/
+zookeeper_data/
+zookeeper_logs/
 
 # Testing
 .pytest_cache/
@@ -90,3 +80,25 @@ Thumbs.db
 *.tmp
 *.bak
 *.swp
+temp/
+tmp/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Kafka
+*.log.*
+*.index
+*.timeindex
+*.snapshot
+
+# Keep directory structure
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/models/.gitkeep
+!notebooks/.gitkeep
+!tests/.gitkeep
+!deployment/.gitkeep
+!feast_repo/.gitkeep

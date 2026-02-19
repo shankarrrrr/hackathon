@@ -1218,11 +1218,12 @@ elif page == "Risk Overview":
         st.markdown("### 📈 Risk Trend Analysis")
         
         # Initialize variables for use in insights section
-        trend_df = pd.DataFrame()
+        trend_df = None
         trend_change = 0
         
         try:
             from sqlalchemy import text
+            import pandas as pd
             
             if engine is not None:
                 # Get historical risk scores for trend
@@ -1438,8 +1439,8 @@ elif page == "Risk Overview":
             
             # Insight 2: Portfolio health trend (only if trend data exists)
             try:
-                if 'trend_df' in locals() and len(trend_df) > 1 and 'trend_change' in locals():
-                    trend_direction = "increasing" if trend_change > 0 else "decreasing" if trend_change < 0 else "stable"
+                if trend_df is not None and len(trend_df) > 1 and trend_change != 0:
+                    trend_direction = "increasing" if trend_change > 0 else "decreasing"
                     if abs(trend_change) > 0.05:
                         insights.append({
                             "icon": "📈" if trend_change > 0 else "📉",

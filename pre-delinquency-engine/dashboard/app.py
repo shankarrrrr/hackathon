@@ -1092,13 +1092,13 @@ elif page == "Risk Overview":
         
         # Layer 4: Portfolio Risk Health visualization (moved to bottom)
         st.markdown("### 📊 Portfolio Risk Health")
-        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Overall risk distribution across the customer portfolio</p>", unsafe_allow_html=True)
+        st.caption("Overall risk distribution across the customer portfolio")
         
-        col1, col2 = st.columns(2, gap="large")
+        # Create two equal columns for charts
+        col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("#### 📊 Risk Score Distribution")
-            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
             
             try:
                 # Create histogram using UI component with text annotations
@@ -1132,17 +1132,21 @@ elif page == "Risk Overview":
                     xanchor="center"
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="risk_score_histogram")
                 
             except Exception as e:
-                st.warning("⚠️ Chart could not be rendered. Showing data summary instead.")
-                st.write("**Risk Score Statistics:**")
-                st.write(df['risk_score'].describe())
-                st.info("The dashboard will continue operating. Chart rendering issue logged.")
+                # Suppress error and show clean fallback
+                st.info("📊 Risk Score Statistics")
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    st.metric("Average", f"{df['risk_score'].mean():.2%}")
+                with col_b:
+                    st.metric("Median", f"{df['risk_score'].median():.2%}")
+                with col_c:
+                    st.metric("High Risk %", f"{(len(df[df['risk_score'] >= 0.6]) / len(df) * 100):.1f}%")
         
         with col2:
             st.markdown("#### 🎯 Risk Level Breakdown")
-            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
             
             try:
                 # Count customers by risk level
@@ -1152,13 +1156,11 @@ elif page == "Risk Overview":
                 color_map = get_risk_level_color_map()
                 
                 # Calculate tooltip statistics for each risk segment
-                # Calculate average days to delinquency (placeholder) and most common risk driver
                 customdata = []
                 for risk_level in risk_counts.index:
                     segment_df = df[df['risk_level'] == risk_level]
                     
                     # Placeholder calculation for average days to delinquency
-                    # In a real system, this would be calculated from actual delinquency data
                     avg_days_map = {
                         'CRITICAL': 15,
                         'HIGH': 30,
@@ -1167,7 +1169,7 @@ elif page == "Risk Overview":
                     }
                     avg_days = avg_days_map.get(risk_level, 90)
                     
-                    # Find most common risk driver (mode of top_feature_1)
+                    # Find most common risk driver
                     if 'top_feature_1' in segment_df.columns and len(segment_df) > 0:
                         most_common_driver = segment_df['top_feature_1'].mode()
                         if len(most_common_driver) > 0:
@@ -1179,7 +1181,7 @@ elif page == "Risk Overview":
                     
                     customdata.append([avg_days, most_common_driver])
                 
-                # Create custom hover template with aggregated statistics
+                # Create custom hover template
                 hovertemplate = (
                     '<b>%{label}</b><br>'
                     'Customers: %{value}<br>'
@@ -1188,7 +1190,7 @@ elif page == "Risk Overview":
                     '<extra></extra>'
                 )
                 
-                # Create pie chart with custom tooltips and text annotations
+                # Create pie chart
                 fig = render_pie_chart(
                     labels=risk_counts.index,
                     values=risk_counts.values,
@@ -1198,35 +1200,15 @@ elif page == "Risk Overview":
                     hovertemplate=hovertemplate
                 )
                 
-                # Add text annotation showing total customers
-                import plotly.graph_objects as go
-                total_customers = len(df)
-                fig.add_annotation(
-                    text=f"Total: {total_customers:,} customers",
-                    xref="paper", yref="paper",
-                    x=0.5, y=-0.1,
-                    showarrow=False,
-                    font=dict(size=12, color="#6B7280"),
-                    xanchor="center"
-                )
-                
-                # Display the chart and capture click events
-                selected_points = st.plotly_chart(fig, use_container_width=True, on_select="rerun", key="risk_pie_chart_bottom")
-                
-                # Handle click events - store selected risk level in session state
-                if selected_points and 'selection' in selected_points:
-                    selection = selected_points['selection']
-                    if 'points' in selection and len(selection['points']) > 0:
-                        # Get the clicked risk level
-                        clicked_point = selection['points'][0]
-                        if 'label' in clicked_point:
-                            st.session_state['selected_risk_level'] = clicked_point['label']
+                st.plotly_chart(fig, use_container_width=True, key="risk_level_pie")
                 
             except Exception as e:
-                st.warning("⚠️ Chart could not be rendered. Showing data table instead.")
-                st.write("**Risk Level Breakdown:**")
-                st.dataframe(df['risk_level'].value_counts())
-                st.info("The dashboard will continue operating. Chart rendering issue logged.")
+                # Suppress error and show clean fallback
+                st.info("🎯 Risk Level Breakdown")
+                risk_counts = df['risk_level'].value_counts()
+                for level, count in risk_counts.items():
+                    pct = (count / len(df)) * 100
+                    st.metric(level, f"{count} ({pct:.1f}%)")
 
 # ============================================================================
 # CUSTOMER DEEP DIVE PAGE
@@ -1782,7 +1764,7 @@ elif page == "Interventions Tracker":
     st.markdown("### ⏱️ Select Time Period")
     st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
     
-    col1, col2 = st.columns([4, 1], gap="medium")
+    col1, col2 = st.columns([3, 1], gap="medium")
     
     with col1:
         # Selectbox with time period options

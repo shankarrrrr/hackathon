@@ -609,8 +609,8 @@ def render_critical_action_panel(df, engine=None):
     # Add vertical spacing before buttons
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     
-    # Create three action buttons with proper hierarchy
-    col1, col2, col3 = st.columns([2.5, 2, 1.5])
+    # Create three action buttons with equal width in proper grid
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         trigger_interventions = st.button(
@@ -620,11 +620,7 @@ def render_critical_action_panel(df, engine=None):
             type="primary"
         )
         # Add confirmation hint below primary button
-        st.markdown("""
-            <p style='font-size: 0.7rem; color: #9CA3AF; margin-top: 0.25rem; margin-bottom: 0;'>
-                No customer communication is sent without confirmation
-            </p>
-        """, unsafe_allow_html=True)
+        st.caption("No customer communication is sent without confirmation")
     
     with col2:
         view_customers = st.button(

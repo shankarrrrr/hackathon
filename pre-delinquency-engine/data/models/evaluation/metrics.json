@@ -1,7 +1,7 @@
 {
-  "auc_roc": 0.6382572316519244,
-  "ensemble_auc": 0.6382572316519244,
-  "optimal_threshold": 0.17334272726100652,
+  "auc_roc": 0.6383432942863974,
+  "ensemble_auc": 0.6383432942863974,
+  "optimal_threshold": 0.16781231032855365,
   "precision": 0.22,
   "recall": 0.96,
   "f1_score": 0.36,
@@ -12,91 +12,91 @@
   "false_negatives": 37,
   "ensemble_weights": {
     "xgboost": 0.2,
-    "lightgbm": 0.4000000000000001,
-    "catboost": 0.39999999999999997
+    "lightgbm": 0.2,
+    "catboost": 0.6000000000000001
   },
   "feature_count": 104,
-  "training_date": "2026-02-19T11:58:49.169159",
+  "training_date": "2026-02-19T16:03:58.690064",
   "top_features": [
     {
-      "feature": "gambling_txns_std",
-      "importance": 485.1331787109375
+      "feature": "cash_hoarding_flag_std",
+      "importance": 231.1604766845703
     },
     {
       "feature": "atm_withdrawal_spike_min",
-      "importance": 404.65863037109375
-    },
-    {
-      "feature": "cash_hoarding_flag_max",
-      "importance": 401.8087158203125
-    },
-    {
-      "feature": "lending_app_transfers_mean",
-      "importance": 399.77117919921875
-    },
-    {
-      "feature": "cash_hoarding_flag_std",
-      "importance": 391.8048400878906
+      "importance": 177.02227783203125
     },
     {
       "feature": "gambling_txns_max",
-      "importance": 352.54132080078125
+      "importance": 176.44094848632812
     },
     {
-      "feature": "lending_app_transfers_std",
-      "importance": 278.6182556152344
+      "feature": "lending_app_transfers_mean",
+      "importance": 160.67481994628906
     },
     {
-      "feature": "atm_withdrawal_spike_max",
-      "importance": 274.3236389160156
+      "feature": "gambling_txns_std",
+      "importance": 110.04827880859375
     },
     {
       "feature": "overall_stress_score",
-      "importance": 235.71240234375
-    },
-    {
-      "feature": "lending_app_x_gambling",
-      "importance": 200.44407653808594
+      "importance": 101.89655303955078
     },
     {
       "feature": "lending_app_transfers_max",
-      "importance": 194.6702423095703
+      "importance": 86.61933898925781
     },
     {
       "feature": "cash_hoarding_flag_mean",
-      "importance": 178.40806579589844
+      "importance": 79.50926208496094
     },
     {
-      "feature": "gambling_txns_mean",
-      "importance": 157.77149963378906
+      "feature": "atm_withdrawal_spike_max",
+      "importance": 74.26419067382812
+    },
+    {
+      "feature": "lending_app_transfers_std",
+      "importance": 66.18999481201172
+    },
+    {
+      "feature": "cash_hoarding_flag_max",
+      "importance": 53.927852630615234
     },
     {
       "feature": "gambling_txns_trend",
-      "importance": 142.5901336669922
+      "importance": 51.18660354614258
     },
     {
-      "feature": "utility_delay_days_max",
-      "importance": 141.210205078125
+      "feature": "gambling_txns_mean",
+      "importance": 51.121910095214844
     },
     {
-      "feature": "emi_delay_days_max",
-      "importance": 114.68972778320312
+      "feature": "lending_app_x_gambling",
+      "importance": 41.029239654541016
     },
     {
-      "feature": "salary_delay_x_failed_autodebits_v2",
-      "importance": 110.28035736083984
-    },
-    {
-      "feature": "utility_delay_days_consec_high",
-      "importance": 108.66251373291016
+      "feature": "salary_delay_x_failed_autodebits",
+      "importance": 40.73812484741211
     },
     {
       "feature": "cash_hoarding_flag_trend",
-      "importance": 105.3984603881836
+      "importance": 36.50177001953125
     },
     {
-      "feature": "emi_delay_days_min",
-      "importance": 79.30846405029297
+      "feature": "salary_delay_weeks_consec_high",
+      "importance": 35.5599250793457
+    },
+    {
+      "feature": "utility_delay_days_max",
+      "importance": 31.920244216918945
+    },
+    {
+      "feature": "emi_delay_days_max",
+      "importance": 28.550281524658203
+    },
+    {
+      "feature": "utility_delay_days_min",
+      "importance": 25.650699615478516
     }
   ]
 }

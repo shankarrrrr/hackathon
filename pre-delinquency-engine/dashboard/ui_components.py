@@ -760,18 +760,20 @@ def render_critical_action_panel(df, engine=None):
     
     # Display agent assignment form if requested
     if st.session_state.get('show_agent_assignment', False):
-        with st.expander("Assign Customers to Risk Officer", expanded=True):
-            if len(critical_df) > 0:
-                st.markdown("### 👤 Risk Officer Assignment")
-                st.markdown("<p style='color: #6B7280; font-size: 14px; margin-bottom: 1rem;'>Select a risk officer and customers to assign</p>", unsafe_allow_html=True)
-                
-                # Agent selection dropdown
+        st.markdown("### 👤 Risk Officer Assignment")
+        st.caption("Assign high-risk customers to risk officers for follow-up")
+        
+        if len(critical_df) > 0:
+            # Agent selection with better UI
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
                 agent_list = [
-                    "Risk Officer 1 - John Smith",
-                    "Risk Officer 2 - Sarah Johnson",
-                    "Risk Officer 3 - Michael Brown",
-                    "Risk Officer 4 - Emily Davis",
-                    "Risk Officer 5 - David Wilson"
+                    "John Smith",
+                    "Sarah Johnson",
+                    "Michael Brown",
+                    "Emily Davis",
+                    "David Wilson"
                 ]
                 
                 selected_agent = st.selectbox(
@@ -779,55 +781,129 @@ def render_critical_action_panel(df, engine=None):
                     options=agent_list,
                     help="Choose a risk officer to assign the selected customers"
                 )
-                
-                st.markdown("<div style='margin: 1rem 0;'></div>", unsafe_allow_html=True)
-                
-                # Customer selection checkboxes
-                st.markdown("**Select Customers to Assign:**")
-                
-                selected_customers = []
-                
-                for idx, row in critical_df.iterrows():
-                    customer_id = row['customer_id']
-                    risk_level = row['risk_level']
-                    risk_score = row['risk_score']
-                    
-                    # Create checkbox for each customer
-                    checkbox_label = f"{customer_id[:8]}... - {risk_level} ({risk_score:.2%})"
-                    
-                    if st.checkbox(checkbox_label, key=f"assign_customer_{customer_id}"):
-                        selected_customers.append(customer_id)
-                
-                st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
-                
-                # Assignment button
-                col1, col2 = st.columns([1, 1])
-                
-                with col1:
-                    if st.button("✅ Confirm Assignment", key="confirm_assignment", type="primary", use_container_width=True):
-                        if len(selected_customers) > 0:
-                            # Store assignment in session state (placeholder implementation)
-                            if 'agent_assignments' not in st.session_state:
-                                st.session_state['agent_assignments'] = {}
-                            
-                            for customer_id in selected_customers:
-                                st.session_state['agent_assignments'][customer_id] = selected_agent
-                            
-                            # Display confirmation message
-                            st.success(f"✅ Successfully assigned {len(selected_customers)} customer(s) to {selected_agent}")
-                            
-                            # Clear the form
-                            st.session_state['show_agent_assignment'] = False
-                            st.rerun()
+            
+            with col2:
+                # Show current workload (placeholder)
+                st.metric("Current Workload", "12 customers", help="Active assignments for this officer")
+            
+            st.divider()
+            
+            # Improved customer selection with data table
+            st.markdown("**Select Customers to Assign:**")
+            
+            # Create a selection interface using dataframe
+            selection_data = []
+            for idx, row in critical_df.iterrows():
+                selection_data.append({
+                    'Select': False,
+                    'Customer ID': row['customer_id'][:12] + '...',
+                    'Risk Level': row['risk_level'],
+                    'Risk Score': f"{row['risk_score']:.2%}",
+                    'Primary Driver': row.get('top_feature_1', 'Unknown')[:30],
+                    '_customer_id': row['customer_id'],  # Hidden full ID
+                    '_risk_score': row['risk_score'],  # Hidden numeric score
+                })
+            
+            import pandas as pd
+            selection_df = pd.DataFrame(selection_data)
+            
+            # Use data editor for selection
+            edited_df = st.data_editor(
+                selection_df[['Select', 'Customer ID', 'Risk Level', 'Risk Score', 'Primary Driver']],
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Select": st.column_config.CheckboxColumn(
+                        "Select",
+                        help="Select customers to assign",
+                        default=False,
+                    ),
+                    "Risk Level": st.column_config.TextColumn(
+                        "Risk Level",
+                        help="Customer risk classification"
+                    ),
+                    "Risk Score": st.column_config.TextColumn(
+                        "Risk Score",
+                        help="Probability of delinquency"
+                    )
+                },
+                disabled=["Customer ID", "Risk Level", "Risk Score", "Primary Driver"]
+            )
+            
+            # Get selected customers
+            selected_indices = edited_df[edited_df['Select'] == True].index.tolist()
+            selected_customers = [selection_data[i] for i in selected_indices]
+            
+            # Show selection summary
+            if len(selected_customers) > 0:
+                st.info(f"📋 {len(selected_customers)} customer(s) selected for assignment")
+            
+            # Optional notes field
+            assignment_notes = st.text_area(
+                "Assignment Notes (Optional)",
+                placeholder="Add any special instructions or context for this assignment...",
+                help="These notes will be visible to the assigned risk officer"
+            )
+            
+            st.divider()
+            
+            # Assignment buttons
+            col1, col2, col3 = st.columns([2, 1, 1])
+            
+            with col1:
+                if st.button("✅ Confirm Assignment", key="confirm_assignment", type="primary", use_container_width=True):
+                    if len(selected_customers) > 0:
+                        # Save assignments to database
+                        if engine is not None:
+                            try:
+                                from sqlalchemy import text
+                                from datetime import datetime
+                                
+                                with engine.connect() as conn:
+                                    for customer in selected_customers:
+                                        customer_id = selection_data[selection_indices[selected_customers.index(customer)]]['_customer_id']
+                                        risk_score = selection_data[selection_indices[selected_customers.index(customer)]]['_risk_score']
+                                        risk_level = customer['Risk Level']
+                                        
+                                        # Insert assignment record
+                                        conn.execute(text("""
+                                            INSERT INTO customer_assignments 
+                                            (customer_id, assigned_to, risk_level, risk_score, notes, status)
+                                            VALUES (:customer_id, :assigned_to, :risk_level, :risk_score, :notes, 'active')
+                                        """), {
+                                            'customer_id': customer_id,
+                                            'assigned_to': selected_agent,
+                                            'risk_level': risk_level,
+                                            'risk_score': risk_score,
+                                            'notes': assignment_notes if assignment_notes else None
+                                        })
+                                    
+                                    conn.commit()
+                                
+                                st.success(f"✅ Successfully assigned {len(selected_customers)} customer(s) to {selected_agent}")
+                                st.balloons()
+                                
+                                # Clear the form
+                                st.session_state['show_agent_assignment'] = False
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"❌ Error saving assignments: {str(e)}")
                         else:
-                            st.warning("⚠️ Please select at least one customer to assign.")
-                
-                with col2:
-                    if st.button("❌ Cancel", key="cancel_assignment", use_container_width=True):
-                        st.session_state['show_agent_assignment'] = False
-                        st.rerun()
-            else:
-                st.info("No critical customers available for assignment.")
+                            st.error("❌ Database connection not available")
+                    else:
+                        st.warning("⚠️ Please select at least one customer to assign")
+            
+            with col2:
+                if st.button("🔄 Select All", key="select_all_customers", use_container_width=True):
+                    st.info("Use the checkboxes in the table to select customers")
+            
+            with col3:
+                if st.button("❌ Cancel", key="cancel_assignment", use_container_width=True):
+                    st.session_state['show_agent_assignment'] = False
+                    st.rerun()
+        else:
+            st.info("No critical customers available for assignment")
 
 
 def render_rising_risk_panel_enhanced(df):

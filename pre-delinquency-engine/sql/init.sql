@@ -136,3 +136,24 @@ CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON payments
 
 CREATE TRIGGER update_interventions_updated_at BEFORE UPDATE ON interventions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Customer assignments table for tracking risk officer assignments
+CREATE TABLE IF NOT EXISTS customer_assignments (
+    assignment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID NOT NULL REFERENCES customers(customer_id) ON DELETE CASCADE,
+    assigned_to VARCHAR(100) NOT NULL,
+    assigned_by VARCHAR(100) DEFAULT 'system',
+    assignment_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    risk_level VARCHAR(20) NOT NULL,
+    risk_score DECIMAL(5,4) NOT NULL,
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'reassigned')),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_assignments_customer ON customer_assignments(customer_id, assignment_date DESC);
+CREATE INDEX idx_assignments_officer ON customer_assignments(assigned_to, status);
+
+CREATE TRIGGER update_assignments_updated_at BEFORE UPDATE ON customer_assignments
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

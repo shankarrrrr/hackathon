@@ -1057,14 +1057,6 @@ elif page == "Interventions Tracker":
         st.info("👆 Select a time period and click 'Calculate Metrics' to view intervention data.")
 
 # ============================================================================
-# FOOTER (displayed on all pages)
-# ============================================================================
-
-# Render footer using UI component
-render_footer()
-
-
-# ============================================================================
 # DATA MANAGEMENT PAGE
 # ============================================================================
 
@@ -1180,3 +1172,11 @@ elif page == "Data Management":
                 st.markdown(f"**{step}**")
             with col2:
                 st.markdown(description)
+
+# ============================================================================
+# FOOTER (displayed on all pages)
+# ============================================================================
+
+# Render footer using UI component
+render_footer()
+

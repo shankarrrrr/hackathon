@@ -1208,19 +1208,335 @@ if page == "Action Center":
                 action_disabled = not bulk_mode and ('selected_customers' not in st.session_state or len(st.session_state.get('selected_customers', [])) == 0)
                 
                 if st.button("🔥 Trigger Interventions", type="primary", use_container_width=True, disabled=action_disabled):
-                    # Show override reason capture if user is overriding recommendations
-                    st.session_state['show_override_form'] = True
+                    st.session_state['active_action'] = 'intervention'
+                    st.session_state['show_override_form'] = False
+                    st.session_state['show_assignment_panel'] = False
+                    st.session_state['show_export_dialog'] = False
                     st.rerun()
             
             with col_b:
                 if st.button("📋 Assign to Officers", use_container_width=True):
-                    st.session_state['show_assignment_panel'] = True
+                    st.session_state['active_action'] = 'assignment'
+                    st.session_state['show_override_form'] = False
+                    st.session_state['show_assignment_panel'] = False
+                    st.session_state['show_export_dialog'] = False
                     st.rerun()
             
             with col_c:
                 if st.button("📊 Export Queue", use_container_width=True):
-                    st.session_state['show_export_dialog'] = True
+                    st.session_state['active_action'] = 'export'
+                    st.session_state['show_override_form'] = False
+                    st.session_state['show_assignment_panel'] = False
+                    st.session_state['show_export_dialog'] = False
                     st.rerun()
+            
+            # ===== ACTION PANEL AREA (Shows between buttons and ownership balancer) =====
+            st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+            
+            # INTERVENTION PANEL
+            if st.session_state.get('active_action') == 'intervention':
+                st.markdown("""
+                    <div style='background: white; border-radius: 12px; padding: 1.5rem; 
+                                box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 2px solid #667eea;'>
+                        <div style='font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
+                            📝 Override Reason
+                        </div>
+                        <div style='font-size: 0.875rem; color: #6B7280; margin-bottom: 1rem;'>
+                            Help us improve recommendations by explaining your decision
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                override_categories = [
+                    "No override - following recommendation",
+                    "Customer dispute in progress",
+                    "Known temporary payment delay",
+                    "Manual judgment based on relationship",
+                    "External information not in model",
+                    "Other (specify in notes)"
+                ]
+                
+                override_reason = st.selectbox("Reason", override_categories, key="intervention_reason")
+                override_notes = st.text_area("Additional notes (optional)", height=100, 
+                                             placeholder="Provide additional context for this decision...",
+                                             key="intervention_notes")
+                
+                col_x, col_y = st.columns(2)
+                with col_x:
+                    if st.button("✅ Confirm & Execute", type="primary", use_container_width=True, key="confirm_intervention"):
+                        with st.spinner("Creating interventions..."):
+                            try:
+                                from sqlalchemy import text
+                                import uuid
+                                import json
+                                
+                                if engine:
+                                    # Determine which customers to process
+                                    if bulk_mode:
+                                        target_customers = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]
+                                    else:
+                                        target_ids = st.session_state.get('selected_customers', [])
+                                        target_customers = df[df['customer_id'].isin(target_ids)]
+                                    
+                                    # Filter out cool-down customers
+                                    target_customers = target_customers[~target_customers['customer_id'].isin(recently_contacted)]
+                                    
+                                    intervention_count = 0
+                                    
+                                    with engine.begin() as conn:
+                                        for _, row in target_customers.iterrows():
+                                            intervention_type = 'urgent_contact' if row['risk_score'] > 0.8 else 'proactive_outreach' if row['risk_score'] > 0.65 else 'soft_reminder'
+                                            
+                                            intervention_id = str(uuid.uuid4())
+                                            
+                                            conn.execute(text("""
+                                                INSERT INTO interventions (intervention_id, customer_id, intervention_date, 
+                                                                          intervention_type, risk_score, delivery_status, customer_response)
+                                                VALUES (:id, :cid, :date, :type, :score, 'pending', 'pending')
+                                            """), {
+                                                'id': intervention_id,
+                                                'cid': row['customer_id'],
+                                                'date': datetime.now(),
+                                                'type': intervention_type,
+                                                'score': float(row['risk_score'])
+                                            })
+                                            
+                                            intervention_count += 1
+                                        
+                                        # Log to audit trail
+                                        conn.execute(text("""
+                                            INSERT INTO action_audit_log (action_type, performed_by, customer_count, 
+                                                                         model_version, confidence_level, criteria, 
+                                                                         override_reason, override_category, details)
+                                            VALUES (:action, :user, :count, :model, :confidence, :criteria, :reason, :category, :details)
+                                        """), {
+                                            'action': 'bulk_intervention' if bulk_mode else 'selective_intervention',
+                                            'user': 'Risk Officer',
+                                            'count': intervention_count,
+                                            'model': 'v2.3',
+                                            'confidence': 'High',
+                                            'criteria': f"Risk > 0.5, excluding {len(recently_contacted)} in cool-down",
+                                            'reason': override_notes if override_notes else None,
+                                            'category': override_reason,
+                                            'details': json.dumps({
+                                                'bulk_mode': bulk_mode,
+                                                'total_at_risk': total_at_risk,
+                                                'cooldown_filtered': len(recently_contacted),
+                                                'executed': intervention_count
+                                            })
+                                        })
+                                    
+                                    st.success(f"✅ Created {intervention_count} interventions (filtered {len(recently_contacted)} in cool-down)")
+                                    
+                                    # Log action
+                                    st.session_state['last_action'] = {
+                                        'time': datetime.now().strftime('%H:%M'),
+                                        'user': 'Risk Officer',
+                                        'action': f'Interventions triggered',
+                                        'count': intervention_count,
+                                        'model': 'v2.3',
+                                        'confidence': 'High'
+                                    }
+                                    
+                                    # Clear form
+                                    st.session_state['active_action'] = None
+                                    st.session_state.pop('selected_customers', None)
+                                    
+                                    st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {str(e)}")
+                
+                with col_y:
+                    if st.button("❌ Cancel", use_container_width=True, key="cancel_intervention"):
+                        st.session_state['active_action'] = None
+                        st.rerun()
+            
+            # ASSIGNMENT PANEL
+            elif st.session_state.get('active_action') == 'assignment':
+                st.markdown("""
+                    <div style='background: white; border-radius: 12px; padding: 1.5rem; 
+                                box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 2px solid #667eea;'>
+                        <div style='font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
+                            👥 Assign to Risk Officers
+                        </div>
+                        <div style='font-size: 0.875rem; color: #6B7280; margin-bottom: 1rem;'>
+                            Distribute workload across available officers
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # Determine customers to assign
+                if bulk_mode:
+                    assign_customers = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]
+                else:
+                    target_ids = st.session_state.get('selected_customers', [])
+                    assign_customers = df[df['customer_id'].isin(target_ids)]
+                
+                # Filter out cool-down customers
+                assign_customers = assign_customers[~assign_customers['customer_id'].isin(recently_contacted)]
+                
+                st.markdown(f"""
+                    <div class='info-banner'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <div style='font-size: 1.5rem;'>📊</div>
+                            <div style='font-size: 0.875rem; color: #4338CA; font-weight: 600;'>
+                                Assigning {len(assign_customers)} customers
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # Officer selection
+                officers_list = [
+                    "A. Iyer (5 cases) ✓ Recommended",
+                    "M. Kumar (7 cases) ✓ Recommended",
+                    "K. Mehta (9 cases)",
+                    "R. Sharma (12 cases)",
+                    "P. Singh (15 cases)"
+                ]
+                
+                selected_officer = st.selectbox("Select Risk Officer", officers_list, key="assignment_officer")
+                
+                # Assignment strategy
+                assignment_strategy = st.radio(
+                    "Assignment Strategy",
+                    ["Assign all to selected officer", "Auto-distribute by capacity", "Manual assignment"],
+                    horizontal=True,
+                    key="assignment_strategy"
+                )
+                
+                assignment_notes = st.text_area(
+                    "Assignment notes (optional)", 
+                    height=100, 
+                    placeholder="Reason for assignment, special instructions, priority notes...",
+                    key="assignment_notes"
+                )
+                
+                col_x, col_y = st.columns(2)
+                with col_x:
+                    if st.button("✅ Confirm Assignment", type="primary", use_container_width=True, key="confirm_assignment"):
+                        with st.spinner("Assigning customers..."):
+                            try:
+                                from sqlalchemy import text
+                                import uuid
+                                
+                                if engine:
+                                    officer_name = selected_officer.split(' (')[0]  # Extract name
+                                    
+                                    with engine.begin() as conn:
+                                        for _, row in assign_customers.iterrows():
+                                            conn.execute(text("""
+                                                INSERT INTO customer_assignments (customer_id, assigned_to, assigned_by, 
+                                                                                 risk_level, risk_score, status, notes)
+                                                VALUES (:cid, :officer, :assigned_by, :risk_level, :risk_score, 'active', :notes)
+                                            """), {
+                                                'cid': row['customer_id'],
+                                                'officer': officer_name,
+                                                'assigned_by': 'Risk Manager',
+                                                'risk_level': row['risk_level'],
+                                                'risk_score': float(row['risk_score']),
+                                                'notes': assignment_notes if assignment_notes else None
+                                            })
+                                    
+                                    st.success(f"✅ Assigned {len(assign_customers)} customers to {officer_name}")
+                                    
+                                    # Clear form
+                                    st.session_state['active_action'] = None
+                                    st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {str(e)}")
+                
+                with col_y:
+                    if st.button("❌ Cancel", use_container_width=True, key="cancel_assignment"):
+                        st.session_state['active_action'] = None
+                        st.rerun()
+            
+            # EXPORT PANEL
+            elif st.session_state.get('active_action') == 'export':
+                st.markdown("""
+                    <div style='background: white; border-radius: 12px; padding: 1.5rem; 
+                                box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 2px solid #667eea;'>
+                        <div style='font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
+                            📊 Export Action Queue
+                        </div>
+                        <div style='font-size: 0.875rem; color: #6B7280; margin-bottom: 1rem;'>
+                            Download priority queue for offline review and analysis
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # Export options
+                export_format = st.radio("Export Format", ["CSV", "Excel (XLSX)", "JSON"], horizontal=True, key="export_format")
+                
+                include_options = st.multiselect(
+                    "Include Additional Data",
+                    ["Risk drivers", "Historical scores", "Intervention history", "Assignment history"],
+                    default=["Risk drivers"],
+                    key="export_options"
+                )
+                
+                # Prepare export data
+                if bulk_mode:
+                    export_df = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])].copy()
+                else:
+                    target_ids = st.session_state.get('selected_customers', [])
+                    export_df = df[df['customer_id'].isin(target_ids)].copy()
+                
+                # Add urgency score if not present
+                if 'urgency_score' not in export_df.columns:
+                    export_df['urgency_score'] = (export_df['risk_score'] * 0.6) + ((30 - export_df.get('days_to_delinquency', 15)) / 30 * 0.3)
+                
+                st.markdown(f"""
+                    <div class='info-banner'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <div style='font-size: 1.5rem;'>📋</div>
+                            <div style='font-size: 0.875rem; color: #4338CA; font-weight: 600;'>
+                                Exporting {len(export_df)} customers
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # Preview
+                with st.expander("🔍 Preview Export Data"):
+                    preview_cols = ['customer_id', 'risk_score', 'risk_level', 'urgency_score', 'top_feature_1']
+                    st.dataframe(export_df[preview_cols].head(10), use_container_width=True, hide_index=True)
+                
+                # Generate export file
+                if export_format == "CSV":
+                    export_data = export_df.to_csv(index=False)
+                    file_ext = "csv"
+                    mime_type = "text/csv"
+                elif export_format == "Excel (XLSX)":
+                    import io
+                    buffer = io.BytesIO()
+                    export_df.to_excel(buffer, index=False, engine='openpyxl')
+                    export_data = buffer.getvalue()
+                    file_ext = "xlsx"
+                    mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                else:  # JSON
+                    export_data = export_df.to_json(orient='records', indent=2)
+                    file_ext = "json"
+                    mime_type = "application/json"
+                
+                filename = f"action_queue_{datetime.now().strftime('%Y%m%d_%H%M')}.{file_ext}"
+                
+                col_x, col_y = st.columns(2)
+                with col_x:
+                    st.download_button(
+                        label=f"⬇️ Download {export_format}",
+                        data=export_data,
+                        file_name=filename,
+                        mime=mime_type,
+                        type="primary",
+                        use_container_width=True,
+                        key="download_export"
+                    )
+                
+                with col_y:
+                    if st.button("❌ Close", use_container_width=True, key="close_export"):
+                        st.session_state['active_action'] = None
+                        st.rerun()
         
         with col2:
             st.markdown("#### 🎯 Ownership Load Balancer")
@@ -1254,320 +1570,6 @@ if page == "Action Center":
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
-        
-        # ===== OVERRIDE REASON CAPTURE =====
-        if st.session_state.get('show_override_form', False):
-            st.markdown("""
-                <div class='dialog-container'>
-                    <div style='margin-bottom: 1.5rem;'>
-                        <div style='font-size: 1.25rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
-                            📝 Override Reason
-                        </div>
-                        <div style='font-size: 0.875rem; color: #6B7280;'>
-                            Help us improve recommendations by explaining your decision
-                        </div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            col1, col2 = st.columns([3, 1])
-            
-            with col1:
-                override_categories = [
-                    "No override - following recommendation",
-                    "Customer dispute in progress",
-                    "Known temporary payment delay",
-                    "Manual judgment based on relationship",
-                    "External information not in model",
-                    "Other (specify in notes)"
-                ]
-                
-                override_reason = st.selectbox("Reason", override_categories, label_visibility="collapsed")
-                override_notes = st.text_area("Additional notes (optional)", height=100, placeholder="Provide additional context for this decision...")
-            
-            with col2:
-                st.write("")
-                st.write("")
-                if st.button("✅ Confirm & Execute", type="primary", use_container_width=True, key="confirm_intervention"):
-                    with st.spinner("Creating interventions..."):
-                        try:
-                            from sqlalchemy import text
-                            import uuid
-                            import json
-                            
-                            if engine:
-                                # Determine which customers to process
-                                if bulk_mode:
-                                    target_customers = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]
-                                else:
-                                    target_ids = st.session_state.get('selected_customers', [])
-                                    target_customers = df[df['customer_id'].isin(target_ids)]
-                                
-                                # Filter out cool-down customers
-                                target_customers = target_customers[~target_customers['customer_id'].isin(recently_contacted)]
-                                
-                                intervention_count = 0
-                                
-                                with engine.begin() as conn:
-                                    for _, row in target_customers.iterrows():
-                                        intervention_type = 'urgent_contact' if row['risk_score'] > 0.8 else 'proactive_outreach' if row['risk_score'] > 0.65 else 'soft_reminder'
-                                        
-                                        intervention_id = str(uuid.uuid4())
-                                        
-                                        conn.execute(text("""
-                                            INSERT INTO interventions (intervention_id, customer_id, intervention_date, 
-                                                                      intervention_type, risk_score, delivery_status, customer_response)
-                                            VALUES (:id, :cid, :date, :type, :score, 'pending', 'pending')
-                                        """), {
-                                            'id': intervention_id,
-                                            'cid': row['customer_id'],
-                                            'date': datetime.now(),
-                                            'type': intervention_type,
-                                            'score': float(row['risk_score'])
-                                        })
-                                        
-                                        intervention_count += 1
-                                    
-                                    # Log to audit trail
-                                    conn.execute(text("""
-                                        INSERT INTO action_audit_log (action_type, performed_by, customer_count, 
-                                                                     model_version, confidence_level, criteria, 
-                                                                     override_reason, override_category, details)
-                                        VALUES (:action, :user, :count, :model, :confidence, :criteria, :reason, :category, :details)
-                                    """), {
-                                        'action': 'bulk_intervention' if bulk_mode else 'selective_intervention',
-                                        'user': 'Risk Officer',
-                                        'count': intervention_count,
-                                        'model': 'v2.3',
-                                        'confidence': 'High',
-                                        'criteria': f"Risk > 0.5, excluding {len(recently_contacted)} in cool-down",
-                                        'reason': override_notes if override_notes else None,
-                                        'category': override_reason,
-                                        'details': json.dumps({
-                                            'bulk_mode': bulk_mode,
-                                            'total_at_risk': total_at_risk,
-                                            'cooldown_filtered': len(recently_contacted),
-                                            'executed': intervention_count
-                                        })
-                                    })
-                                
-                                st.success(f"✅ Created {intervention_count} interventions (filtered {len(recently_contacted)} in cool-down)")
-                                
-                                # Log action
-                                st.session_state['last_action'] = {
-                                    'time': datetime.now().strftime('%H:%M'),
-                                    'user': 'Risk Officer',
-                                    'action': f'Interventions triggered',
-                                    'count': intervention_count,
-                                    'model': 'v2.3',
-                                    'confidence': 'High'
-                                }
-                                
-                                # Clear form
-                                st.session_state['show_override_form'] = False
-                                st.session_state.pop('selected_customers', None)
-                                
-                                st.rerun()
-                        except Exception as e:
-                            st.error(f"Error: {str(e)}")
-                
-                if st.button("❌ Cancel", use_container_width=True, key="cancel_intervention"):
-                    st.session_state['show_override_form'] = False
-                    st.rerun()
-        
-        # ===== ASSIGN TO OFFICERS DIALOG =====
-        if st.session_state.get('show_assignment_panel', False):
-            st.markdown("""
-                <div class='dialog-container'>
-                    <div style='margin-bottom: 1.5rem;'>
-                        <div style='font-size: 1.25rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
-                            👥 Assign to Risk Officers
-                        </div>
-                        <div style='font-size: 0.875rem; color: #6B7280;'>
-                            Distribute workload across available officers
-                        </div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            col1, col2 = st.columns([3, 1])
-            
-            with col1:
-                # Determine customers to assign
-                if bulk_mode:
-                    assign_customers = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]
-                else:
-                    target_ids = st.session_state.get('selected_customers', [])
-                    assign_customers = df[df['customer_id'].isin(target_ids)]
-                
-                # Filter out cool-down customers
-                assign_customers = assign_customers[~assign_customers['customer_id'].isin(recently_contacted)]
-                
-                st.markdown(f"""
-                    <div class='info-banner'>
-                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
-                            <div style='font-size: 1.5rem;'>📊</div>
-                            <div style='font-size: 0.875rem; color: #4338CA; font-weight: 600;'>
-                                Assigning {len(assign_customers)} customers
-                            </div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # Officer selection
-                officers_list = [
-                    "A. Iyer (5 cases) ✓ Recommended",
-                    "M. Kumar (7 cases) ✓ Recommended",
-                    "K. Mehta (9 cases)",
-                    "R. Sharma (12 cases)",
-                    "P. Singh (15 cases)"
-                ]
-                
-                selected_officer = st.selectbox("Select Risk Officer", officers_list)
-                
-                # Assignment strategy
-                assignment_strategy = st.radio(
-                    "Assignment Strategy",
-                    ["Assign all to selected officer", "Auto-distribute by capacity", "Manual assignment"],
-                    horizontal=True
-                )
-                
-                assignment_notes = st.text_area(
-                    "Assignment notes (optional)", 
-                    height=100, 
-                    placeholder="Reason for assignment, special instructions, priority notes..."
-                )
-            
-            with col2:
-                st.write("")
-                st.write("")
-                st.write("")
-                if st.button("✅ Confirm Assignment", type="primary", use_container_width=True, key="confirm_assignment"):
-                    with st.spinner("Assigning customers..."):
-                        try:
-                            from sqlalchemy import text
-                            import uuid
-                            
-                            if engine:
-                                officer_name = selected_officer.split(' (')[0]  # Extract name
-                                
-                                with engine.begin() as conn:
-                                    for _, row in assign_customers.iterrows():
-                                        conn.execute(text("""
-                                            INSERT INTO customer_assignments (customer_id, assigned_to, assigned_by, 
-                                                                             risk_level, risk_score, status, notes)
-                                            VALUES (:cid, :officer, :assigned_by, :risk_level, :risk_score, 'active', :notes)
-                                        """), {
-                                            'cid': row['customer_id'],
-                                            'officer': officer_name,
-                                            'assigned_by': 'Risk Manager',
-                                            'risk_level': row['risk_level'],
-                                            'risk_score': float(row['risk_score']),
-                                            'notes': assignment_notes if assignment_notes else None
-                                        })
-                                
-                                st.success(f"✅ Assigned {len(assign_customers)} customers to {officer_name}")
-                                
-                                # Clear form
-                                st.session_state['show_assignment_panel'] = False
-                                st.rerun()
-                        except Exception as e:
-                            st.error(f"Error: {str(e)}")
-                
-                if st.button("❌ Cancel", use_container_width=True, key="cancel_assignment"):
-                    st.session_state['show_assignment_panel'] = False
-                    st.rerun()
-        
-        # ===== EXPORT QUEUE DIALOG =====
-        if st.session_state.get('show_export_dialog', False):
-            st.markdown("""
-                <div class='dialog-container'>
-                    <div style='margin-bottom: 1.5rem;'>
-                        <div style='font-size: 1.25rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
-                            📊 Export Action Queue
-                        </div>
-                        <div style='font-size: 0.875rem; color: #6B7280;'>
-                            Download priority queue for offline review and analysis
-                        </div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            col1, col2 = st.columns([3, 1])
-            
-            with col1:
-                # Export options
-                export_format = st.radio("Export Format", ["CSV", "Excel (XLSX)", "JSON"], horizontal=True)
-                
-                include_options = st.multiselect(
-                    "Include Additional Data",
-                    ["Risk drivers", "Historical scores", "Intervention history", "Assignment history"],
-                    default=["Risk drivers"]
-                )
-                
-                # Prepare export data
-                if bulk_mode:
-                    export_df = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])].copy()
-                else:
-                    target_ids = st.session_state.get('selected_customers', [])
-                    export_df = df[df['customer_id'].isin(target_ids)].copy()
-                
-                # Add urgency score if not present
-                if 'urgency_score' not in export_df.columns:
-                    export_df['urgency_score'] = (export_df['risk_score'] * 0.6) + ((30 - export_df.get('days_to_delinquency', 15)) / 30 * 0.3)
-                
-                st.markdown(f"""
-                    <div class='info-banner'>
-                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
-                            <div style='font-size: 1.5rem;'>📋</div>
-                            <div style='font-size: 0.875rem; color: #4338CA; font-weight: 600;'>
-                                Exporting {len(export_df)} customers
-                            </div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # Preview
-                with st.expander("🔍 Preview Export Data"):
-                    preview_cols = ['customer_id', 'risk_score', 'risk_level', 'urgency_score', 'top_feature_1']
-                    st.dataframe(export_df[preview_cols].head(10), use_container_width=True, hide_index=True)
-            
-            with col2:
-                st.write("")
-                st.write("")
-                
-                # Generate export file
-                if export_format == "CSV":
-                    export_data = export_df.to_csv(index=False)
-                    file_ext = "csv"
-                    mime_type = "text/csv"
-                elif export_format == "Excel (XLSX)":
-                    import io
-                    buffer = io.BytesIO()
-                    export_df.to_excel(buffer, index=False, engine='openpyxl')
-                    export_data = buffer.getvalue()
-                    file_ext = "xlsx"
-                    mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                else:  # JSON
-                    export_data = export_df.to_json(orient='records', indent=2)
-                    file_ext = "json"
-                    mime_type = "application/json"
-                
-                filename = f"action_queue_{datetime.now().strftime('%Y%m%d_%H%M')}.{file_ext}"
-                
-                st.download_button(
-                    label=f"⬇️ Download {export_format}",
-                    data=export_data,
-                    file_name=filename,
-                    mime=mime_type,
-                    type="primary",
-                    use_container_width=True,
-                    key="download_export"
-                )
-                
-                if st.button("❌ Close", use_container_width=True, key="close_export"):
-                    st.session_state['show_export_dialog'] = False
-                    st.rerun()
         
         st.divider()
         

@@ -1670,18 +1670,6 @@ elif page == "Risk Overview":
                 st.caption(f"Showing {len(filtered_df)} customers with {selected_risk_level} risk level")
             else:
                 st.info(f"No customers found with {selected_risk_level} risk level.")
-                                    'customer_id': row['customer_id'],
-                                    'intervention_type': intervention_type,
-                                    'risk_score': row['risk_score'],
-                                    'intervention_date': datetime.now(),
-                                    'customer_response': 'pending'
-                                })
-                        
-                        st.success(f"✅ Successfully triggered {high_risk_count} interventions for high-risk customers!")
-                    except Exception as e:
-                        st.error(f"❌ Error creating interventions: {str(e)}")
-                else:
-                    st.warning("⚠️ No high-risk customers found or database not available.")
 
 # ============================================================================
 # CUSTOMER DEEP DIVE PAGE

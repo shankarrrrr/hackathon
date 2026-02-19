@@ -1743,161 +1743,363 @@ elif page == "Real-time Monitor":
 # ============================================================================
 
 elif page == "Model Performance":
-    # Load model metrics from JSON file (Task 8.1)
+    st.markdown("### 🎯 Model Performance Analytics")
+    st.caption("Comprehensive evaluation of the risk prediction model")
+    
+    # Load model metrics and feature importance
     try:
         import json
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
         
         metrics_path = "data/models/evaluation/metrics.json"
+        feature_importance_path = "data/models/evaluation/feature_importance.json"
         
         with open(metrics_path, 'r') as f:
             metrics = json.load(f)
         
-        # Display key metrics cards (Task 8.2)
-        st.markdown("### 📊 Key Performance Metrics")
-        st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
+        # Try to load feature importance
+        try:
+            with open(feature_importance_path, 'r') as f:
+                feature_importance = json.load(f)
+        except:
+            feature_importance = None
+        
+        # Model Health Score - NEW
+        st.markdown("### 🏆 Model Health Score")
+        
+        auc_roc = metrics.get('auc_roc', 0)
+        precision = metrics.get('precision', 0)
+        recall = metrics.get('recall', 0)
+        f1_score = metrics.get('f1_score', 0)
+        
+        # Calculate overall health score (weighted average)
+        health_score = (auc_roc * 0.4 + f1_score * 0.3 + precision * 0.15 + recall * 0.15) * 100
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            # Health score gauge
+            fig_health = go.Figure(go.Indicator(
+                mode="gauge+number+delta",
+                value=health_score,
+                domain={'x': [0, 1], 'y': [0, 1]},
+                title={'text': "Overall Health", 'font': {'size': 20}},
+                delta={'reference': 75, 'increasing': {'color': "green"}},
+                gauge={
+                    'axis': {'range': [None, 100], 'tickwidth': 1},
+                    'bar': {'color': "darkblue"},
+                    'bgcolor': "white",
+                    'steps': [
+                        {'range': [0, 50], 'color': '#FEE2E2'},
+                        {'range': [50, 70], 'color': '#FEF3C7'},
+                        {'range': [70, 85], 'color': '#D1FAE5'},
+                        {'range': [85, 100], 'color': '#A7F3D0'}
+                    ],
+                    'threshold': {
+                        'line': {'color': "red", 'width': 4},
+                        'thickness': 0.75,
+                        'value': 90
+                    }
+                }
+            ))
+            fig_health.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+            st.plotly_chart(fig_health, use_container_width=True, key="health_gauge")
+        
+        with col2:
+            # Performance breakdown radar chart
+            categories = ['AUC-ROC', 'Precision', 'Recall', 'F1-Score']
+            values = [auc_roc*100, precision*100, recall*100, f1_score*100]
+            
+            fig_radar = go.Figure()
+            fig_radar.add_trace(go.Scatterpolar(
+                r=values,
+                theta=categories,
+                fill='toself',
+                name='Current Model',
+                line_color='#3B82F6'
+            ))
+            
+            # Add benchmark line
+            fig_radar.add_trace(go.Scatterpolar(
+                r=[75, 75, 75, 75],
+                theta=categories,
+                fill='toself',
+                name='Target Benchmark',
+                line_color='#10B981',
+                line_dash='dash',
+                opacity=0.3
+            ))
+            
+            fig_radar.update_layout(
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0, 100])
+                ),
+                showlegend=True,
+                title="Performance Radar",
+                height=300
+            )
+            st.plotly_chart(fig_radar, use_container_width=True, key="radar_chart")
+        
+        st.divider()
+        
+        # Core Metrics with visual indicators
+        st.markdown("### 📊 Core Performance Metrics")
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            auc_roc = metrics.get('auc_roc', 0)
-            st.metric(
-                label="AUC-ROC",
-                value=f"{auc_roc:.4f}",
-                help="Area Under the ROC Curve - measures model's ability to distinguish between classes"
-            )
+            delta_auc = "+Good" if auc_roc >= 0.8 else "Needs improvement"
+            st.metric("AUC-ROC", f"{auc_roc:.4f}", delta=delta_auc)
+            st.progress(auc_roc)
         
         with col2:
-            precision = metrics.get('precision', 0)
-            st.metric(
-                label="Precision",
-                value=f"{precision:.1%}",
-                help="Percentage of positive predictions that were correct"
-            )
+            delta_prec = "+Good" if precision >= 0.75 else "Needs improvement"
+            st.metric("Precision", f"{precision:.1%}", delta=delta_prec)
+            st.progress(precision)
         
         with col3:
-            recall = metrics.get('recall', 0)
-            st.metric(
-                label="Recall",
-                value=f"{recall:.1%}",
-                help="Percentage of actual positives that were correctly identified"
-            )
+            delta_rec = "+Good" if recall >= 0.70 else "Needs improvement"
+            st.metric("Recall", f"{recall:.1%}", delta=delta_rec)
+            st.progress(recall)
         
         with col4:
-            f1_score = metrics.get('f1_score', 0)
-            st.metric(
-                label="F1 Score",
-                value=f"{f1_score:.4f}",
-                help="Harmonic mean of precision and recall"
-            )
+            delta_f1 = "+Good" if f1_score >= 0.72 else "Needs improvement"
+            st.metric("F1 Score", f"{f1_score:.4f}", delta=delta_f1)
+            st.progress(f1_score)
         
-        st.markdown("---")
+        st.divider()
         
-        # Create confusion matrix heatmap (Task 8.3)
-        st.markdown("### 🔢 Confusion Matrix")
-        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Model prediction accuracy breakdown</p>", unsafe_allow_html=True)
+        # Confusion Matrix with enhanced visualization
+        st.markdown("### 🔢 Prediction Analysis")
         
-        try:
-            # Extract confusion matrix values
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.markdown("**Confusion Matrix**")
+            
             tp = metrics.get('true_positives', 0)
             tn = metrics.get('true_negatives', 0)
             fp = metrics.get('false_positives', 0)
             fn = metrics.get('false_negatives', 0)
             
-            # Create confusion matrix using UI component
-            fig = render_confusion_matrix(tp, tn, fp, fn, "Confusion Matrix")
+            try:
+                fig_cm = render_confusion_matrix(tp, tn, fp, fn, "Prediction Breakdown")
+                st.plotly_chart(fig_cm, use_container_width=True, key="confusion_matrix")
+            except:
+                # Fallback display
+                st.write(f"TP: {tp} | TN: {tn}")
+                st.write(f"FP: {fp} | FN: {fn}")
+        
+        with col2:
+            st.markdown("**Classification Metrics**")
             
-            st.plotly_chart(fig, use_container_width=True)
+            # Calculate additional metrics
+            accuracy = metrics.get('accuracy', 0)
+            total = tp + tn + fp + fn
             
-        except Exception as e:
-            st.warning("⚠️ Confusion matrix could not be rendered. Showing values instead.")
-            st.write("**Confusion Matrix Values:**")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("True Positives (TP)", tp)
-                st.metric("False Negatives (FN)", fn)
-            with col2:
-                st.metric("False Positives (FP)", fp)
-                st.metric("True Negatives (TN)", tn)
-            st.info("The dashboard will continue operating. Chart rendering issue logged.")
+            if total > 0:
+                # Create metrics breakdown chart
+                fig_metrics = go.Figure()
+                
+                fig_metrics.add_trace(go.Bar(
+                    name='Correct',
+                    x=['Predictions'],
+                    y=[tp + tn],
+                    marker_color='#10B981',
+                    text=[f'{tp + tn} ({(tp+tn)/total*100:.1f}%)'],
+                    textposition='inside'
+                ))
+                
+                fig_metrics.add_trace(go.Bar(
+                    name='Incorrect',
+                    x=['Predictions'],
+                    y=[fp + fn],
+                    marker_color='#EF4444',
+                    text=[f'{fp + fn} ({(fp+fn)/total*100:.1f}%)'],
+                    textposition='inside'
+                ))
+                
+                fig_metrics.update_layout(
+                    barmode='stack',
+                    title=f"Accuracy: {accuracy:.1%}",
+                    showlegend=True,
+                    height=300
+                )
+                
+                st.plotly_chart(fig_metrics, use_container_width=True, key="accuracy_bar")
+            
+            # Error breakdown
+            st.markdown("**Error Analysis**")
+            false_alarm_rate = fp / (fp + tn) if (fp + tn) > 0 else 0
+            miss_rate = fn / (tp + fn) if (tp + fn) > 0 else 0
+            
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.metric("False Alarms", f"{false_alarm_rate:.1%}", help="Type I Error Rate")
+            with col_b:
+                st.metric("Missed Cases", f"{miss_rate:.1%}", help="Type II Error Rate")
         
-        st.markdown("---")
+        st.divider()
         
-        # Display business metrics summary (Task 8.4)
-        st.markdown("### 💼 Business Metrics")
-        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Key business impact indicators</p>", unsafe_allow_html=True)
+        # Feature Importance - NEW
+        if feature_importance:
+            st.markdown("### 🎯 Feature Importance")
+            st.caption("Top features driving risk predictions")
+            
+            # Get top 10 features
+            features = list(feature_importance.items())[:10]
+            feature_names = [f[0] for f in features]
+            feature_values = [f[1] for f in features]
+            
+            fig_features = go.Figure(go.Bar(
+                x=feature_values,
+                y=feature_names,
+                orientation='h',
+                marker=dict(
+                    color=feature_values,
+                    colorscale='Blues',
+                    showscale=True
+                ),
+                text=[f'{v:.3f}' for v in feature_values],
+                textposition='outside'
+            ))
+            
+            fig_features.update_layout(
+                title="Top 10 Most Important Features",
+                xaxis_title="Importance Score",
+                yaxis_title="Feature",
+                height=400,
+                yaxis={'categoryorder': 'total ascending'}
+            )
+            
+            st.plotly_chart(fig_features, use_container_width=True, key="feature_importance")
         
-        # Calculate business metrics
-        accuracy = metrics.get('accuracy', 0)
+        st.divider()
         
-        # Calculate false alarm rate (FP / (FP + TN))
-        false_alarm_rate = fp / (fp + tn) if (fp + tn) > 0 else 0
+        # Business Impact Analysis - NEW
+        st.markdown("### 💼 Business Impact Analysis")
         
-        # Calculate detection rate (TP / (TP + FN)) - same as recall
-        detection_rate = tp / (tp + fn) if (tp + fn) > 0 else 0
-        
-        # Display metrics in columns
         col1, col2, col3 = st.columns(3)
         
         with col1:
+            # Cost of false alarms
+            false_alarm_cost = fp * 50  # $50 per unnecessary intervention
             st.metric(
-                label="False Alarm Rate",
-                value=f"{false_alarm_rate:.1%}",
-                help="Percentage of negative cases incorrectly flagged as positive"
+                "False Alarm Cost",
+                f"${false_alarm_cost:,}",
+                help="Estimated cost of unnecessary interventions"
             )
         
         with col2:
+            # Value of correct predictions
+            correct_value = tp * 5000  # $5000 per prevented default
             st.metric(
-                label="Detection Rate",
-                value=f"{detection_rate:.1%}",
-                help="Percentage of positive cases correctly detected"
+                "Value Created",
+                f"${correct_value:,}",
+                help="Estimated value from prevented defaults"
             )
         
         with col3:
+            # Net business value
+            net_value = correct_value - false_alarm_cost
             st.metric(
-                label="Overall Accuracy",
-                value=f"{accuracy:.1%}",
-                help="Percentage of all predictions that were correct"
+                "Net Business Value",
+                f"${net_value:,}",
+                delta="Positive" if net_value > 0 else "Negative",
+                help="Total value created minus costs"
             )
         
-        st.markdown("---")
+        # ROI visualization
+        fig_roi = go.Figure()
         
-        # Add markdown summary with key findings
-        st.markdown("### 📝 Performance Summary")
-        st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
+        fig_roi.add_trace(go.Waterfall(
+            name="Business Impact",
+            orientation="v",
+            measure=["relative", "relative", "total"],
+            x=["Value from Correct Predictions", "Cost of False Alarms", "Net Value"],
+            y=[correct_value, -false_alarm_cost, net_value],
+            text=[f"${correct_value:,}", f"-${false_alarm_cost:,}", f"${net_value:,}"],
+            textposition="outside",
+            connector={"line": {"color": "rgb(63, 63, 63)"}},
+        ))
         
-        st.markdown(f"""
-        ### Key Findings
+        fig_roi.update_layout(
+            title="Business Value Waterfall",
+            showlegend=False,
+            height=300
+        )
         
-        The model demonstrates **{'strong' if auc_roc >= 0.8 else 'moderate' if auc_roc >= 0.7 else 'weak'}** 
-        discriminative ability with an AUC-ROC of **{auc_roc:.4f}**.
+        st.plotly_chart(fig_roi, use_container_width=True, key="roi_waterfall")
         
-        **Performance Highlights:**
-        - **Precision**: {precision:.1%} of customers flagged as high-risk are truly at risk
-        - **Recall**: {recall:.1%} of actual high-risk customers are successfully identified
-        - **F1 Score**: {f1_score:.4f} indicates a {'well-balanced' if f1_score >= 0.7 else 'moderate'} trade-off between precision and recall
+        st.divider()
         
-        **Business Impact:**
-        - **False Alarm Rate**: {false_alarm_rate:.1%} - Lower is better to avoid unnecessary interventions
-        - **Detection Rate**: {detection_rate:.1%} - Higher is better to catch more at-risk customers
-        - **Accuracy**: {accuracy:.1%} - Overall correctness of predictions
+        # Performance Summary with recommendations
+        st.markdown("### 📝 Performance Summary & Recommendations")
         
-        **Recommendations:**
-        {'- ✅ Model performance is strong and suitable for production use' if auc_roc >= 0.8 and f1_score >= 0.7 else ''}
-        {'- ⚠️ Consider model retraining or feature engineering to improve performance' if auc_roc < 0.75 or f1_score < 0.65 else ''}
-        {'- 💡 Monitor false alarm rate to optimize intervention costs' if false_alarm_rate > 0.15 else ''}
-        {'- 💡 Focus on improving recall to catch more at-risk customers' if recall < 0.7 else ''}
-        """)
+        # Determine model grade
+        if health_score >= 85:
+            grade = "A"
+            grade_color = "green"
+            recommendation = "✅ Model is performing excellently and ready for production use."
+        elif health_score >= 75:
+            grade = "B"
+            grade_color = "blue"
+            recommendation = "✅ Model performance is good. Monitor for any degradation."
+        elif health_score >= 65:
+            grade = "C"
+            grade_color = "orange"
+            recommendation = "⚠️ Model performance is acceptable but could be improved."
+        else:
+            grade = "D"
+            grade_color = "red"
+            recommendation = "❌ Model needs retraining or feature engineering."
+        
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            st.markdown(f"### Model Grade: :{grade_color}[{grade}]")
+            st.metric("Health Score", f"{health_score:.1f}/100")
+        
+        with col2:
+            st.info(recommendation)
+            
+            st.markdown("**Key Insights:**")
+            insights = []
+            
+            if auc_roc >= 0.8:
+                insights.append("✅ Excellent discrimination ability")
+            elif auc_roc < 0.7:
+                insights.append("⚠️ Consider adding more predictive features")
+            
+            if precision >= 0.75:
+                insights.append("✅ Low false alarm rate")
+            else:
+                insights.append("💡 Adjust threshold to reduce false positives")
+            
+            if recall >= 0.70:
+                insights.append("✅ Good detection of at-risk customers")
+            else:
+                insights.append("💡 Model may be missing some high-risk cases")
+            
+            if net_value > 0:
+                insights.append(f"✅ Positive ROI: ${net_value:,}")
+            
+            for insight in insights:
+                st.markdown(f"- {insight}")
     
     except FileNotFoundError:
-        st.warning("⚠️ Model evaluation metrics not found.")
+        st.warning("⚠️ Model evaluation metrics not found")
         st.info("""
-        **To view model performance metrics:**
+        **To view model performance:**
         
-        1. Train the model using the training script
-        2. Ensure the metrics file is saved to: `data/models/evaluation/metrics.json`
+        1. Train the model: `python src/models/train_advanced.py`
+        2. Metrics will be saved to: `data/models/evaluation/metrics.json`
         3. Refresh this page
-        
-        **Expected file location:** `data/models/evaluation/metrics.json`
+        """)
+    
+    except Exception as e:
+        st.error(f"Error loading model metrics: {str(e)}")
         """)
     
     except json.JSONDecodeError as e:

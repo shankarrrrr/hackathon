@@ -137,7 +137,7 @@ except Exception as e:
 # DATA LOADING FUNCTIONS
 # ============================================================================
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=10)  # Reduced to 10 seconds for fresher data
 def load_latest_risk_scores():
     """
     Load the latest risk score for each customer using DISTINCT ON.
@@ -313,6 +313,15 @@ st.markdown(f"<p style='color: #000000; font-size: 15px; margin-bottom: 2rem;'>{
 # ============================================================================
 
 if page == "Risk Overview":
+    # Header with refresh button
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.markdown("### 📊 Risk Overview")
+    with col2:
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+    
     # Load latest risk scores
     df = load_latest_risk_scores()
     

@@ -1214,7 +1214,88 @@ elif page == "Risk Overview":
         
         st.divider()
         
-        # ===== SECTION 3: TREND ANALYSIS =====
+        # ===== SECTION 3: PORTFOLIO RISK HEALTH =====
+        st.markdown("### 📊 Portfolio Risk Health")
+        st.caption("Overall risk distribution across the customer portfolio")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### Risk Score Distribution")
+            st.caption("Distribution of Customer Risk Scores")
+            
+            try:
+                # Create histogram with annotations
+                thresholds = [
+                    (0.6, "High Risk (0.6)", "orange"),
+                    (0.8, "Critical (0.8)", "red")
+                ]
+                
+                fig = render_histogram(
+                    data=df['risk_score'],
+                    title="",
+                    xaxis_title="Risk Score",
+                    yaxis_title="Number of Customers",
+                    thresholds=thresholds
+                )
+                
+                # Add statistics annotation
+                import plotly.graph_objects as go
+                avg_score = df['risk_score'].mean()
+                high_risk_pct = (len(df[df['risk_score'] >= 0.6]) / len(df)) * 100
+                
+                fig.add_annotation(
+                    text=f"Avg: {avg_score:.2%} | High Risk: {high_risk_pct:.1f}%",
+                    xref="paper", yref="paper",
+                    x=0.5, y=1.05,
+                    showarrow=False,
+                    font=dict(size=12, color="#6B7280"),
+                    xanchor="center"
+                )
+                
+                st.plotly_chart(fig, use_container_width=True, key="risk_score_histogram_main")
+                
+            except Exception as e:
+                # Fallback metrics
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    st.metric("Average", f"{df['risk_score'].mean():.2%}")
+                with col_b:
+                    st.metric("Median", f"{df['risk_score'].median():.2%}")
+                with col_c:
+                    st.metric("High Risk %", f"{(len(df[df['risk_score'] >= 0.6]) / len(df) * 100):.1f}%")
+        
+        with col2:
+            st.markdown("#### Risk Level Breakdown")
+            st.caption("Customers by Risk Level (Click to Filter)")
+            
+            try:
+                # Count customers by risk level
+                risk_counts = df['risk_level'].value_counts()
+                
+                # Get color mapping
+                color_map = get_risk_level_color_map()
+                
+                # Create pie chart
+                fig = render_pie_chart(
+                    labels=risk_counts.index,
+                    values=risk_counts.values,
+                    title="",
+                    color_map=color_map
+                )
+                
+                st.plotly_chart(fig, use_container_width=True, key="risk_level_pie_main")
+                
+            except Exception as e:
+                # Fallback display
+                risk_counts = df['risk_level'].value_counts()
+                for level, count in risk_counts.items():
+                    pct = (count / len(df)) * 100
+                    st.metric(level, f"{count} ({pct:.1f}%)")
+        
+        st.divider()
+        
+        # ===== SECTION 4: TREND ANALYSIS =====
         st.markdown("### 📈 Risk Trend Analysis")
         
         # Initialize variables for use in insights section
@@ -1348,34 +1429,36 @@ elif page == "Risk Overview":
         
         st.divider()
         
-        # ===== SECTION 4: TOP RISK DRIVERS & INSIGHTS =====
-        st.markdown("### 🎯 Portfolio Risk Drivers")
+        # ===== SECTION 5: TOP RISK DRIVERS & INSIGHTS =====
+        st.markdown("### 🎯 Portfolio Risk Drivers & Insights")
         st.caption("Key factors driving risk across the portfolio")
         
         col1, col2 = st.columns([2, 1])
         
         with col1:
+            st.markdown("#### Top Contributing Factors")
+            
             # Calculate portfolio-wide risk drivers
             try:
-                portfolio_drivers = calculate_portfolio_risk_drivers(df)
+                portfolio_drivers_df = calculate_portfolio_risk_drivers(df)
                 
-                # Check if portfolio_drivers is not None and not empty
-                if portfolio_drivers is not None and (isinstance(portfolio_drivers, list) and len(portfolio_drivers) > 0):
-                    st.markdown("#### Top Contributing Factors")
-                    
+                # Check if we have valid data
+                if portfolio_drivers_df is not None and len(portfolio_drivers_df) > 0:
                     try:
                         import plotly.graph_objects as go
                         
-                        # Get top 10 drivers
-                        top_drivers = portfolio_drivers[:10]
-                        features = [d['feature'][:25] + '...' if len(d['feature']) > 25 else d['feature'] for d in top_drivers]
-                        contributions = [d['contribution_pct'] for d in top_drivers]
-                        customer_counts = [d['customer_count'] for d in top_drivers]
+                        # Convert DataFrame to list format
+                        features = portfolio_drivers_df['driver_name'].tolist()
+                        contributions = portfolio_drivers_df['contribution_pct'].tolist()
+                        customer_counts = portfolio_drivers_df['customer_count'].tolist()
+                        
+                        # Truncate long feature names
+                        features_display = [f[:25] + '...' if len(f) > 25 else f for f in features]
                         
                         fig = go.Figure()
                         
                         fig.add_trace(go.Bar(
-                            y=features[::-1],  # Reverse for better readability
+                            y=features_display[::-1],  # Reverse for better readability
                             x=contributions[::-1],
                             orientation='h',
                             marker=dict(
@@ -1399,13 +1482,41 @@ elif page == "Risk Overview":
                         
                         st.plotly_chart(fig, use_container_width=True, key="portfolio_drivers")
                     except Exception as e:
-                        # Fallback display
-                        for driver in portfolio_drivers[:5]:
-                            st.markdown(f"**{driver['feature']}**: {driver['contribution_pct']:.1f}% ({driver['customer_count']} customers)")
+                        # Fallback display as table
+                        st.dataframe(
+                            portfolio_drivers_df[['driver_name', 'contribution_pct', 'customer_count']].rename(
+                                columns={
+                                    'driver_name': 'Risk Driver',
+                                    'contribution_pct': 'Contribution %',
+                                    'customer_count': 'Customers'
+                                }
+                            ),
+                            use_container_width=True,
+                            hide_index=True
+                        )
                 else:
-                    st.info("Risk driver analysis unavailable")
+                    # If no data from function, show top features from current data
+                    if 'top_feature_1' in df.columns:
+                        feature_counts = df['top_feature_1'].value_counts().head(5)
+                        st.markdown("**Top 5 Risk Drivers:**")
+                        for feature, count in feature_counts.items():
+                            pct = (count / len(df)) * 100
+                            st.markdown(f"• **{feature}**: {count} customers ({pct:.1f}%)")
+                    else:
+                        st.info("Risk driver data not available")
             except Exception as e:
-                st.info("Risk driver analysis unavailable")
+                # Final fallback - show basic feature distribution
+                try:
+                    if 'top_feature_1' in df.columns:
+                        feature_counts = df['top_feature_1'].value_counts().head(5)
+                        st.markdown("**Top 5 Risk Drivers:**")
+                        for feature, count in feature_counts.items():
+                            pct = (count / len(df)) * 100
+                            st.markdown(f"• **{feature}**: {count} customers ({pct:.1f}%)")
+                    else:
+                        st.info("Risk driver data not available")
+                except:
+                    st.info("Risk driver analysis unavailable")
         
         with col2:
             st.markdown("#### Risk Insights")
@@ -1474,7 +1585,7 @@ elif page == "Risk Overview":
         
         st.divider()
         
-        # ===== SECTION 5: RISING RISK CUSTOMERS =====
+        # ===== SECTION 6: RISING RISK CUSTOMERS =====
         st.markdown("### ⚠️ Rising Risk Customers")
         st.caption("Customers with increasing risk scores requiring immediate attention")
         
@@ -1526,67 +1637,39 @@ elif page == "Risk Overview":
             filtered_df = df[df['risk_level'] == selected_risk_level].copy()
             
             if len(filtered_df) > 0:
+                # Show segment statistics
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("Customers", f"{len(filtered_df):,}")
+                
+                with col2:
+                    avg_score = filtered_df['risk_score'].mean()
+                    st.metric("Avg Risk Score", f"{avg_score:.1%}")
+                
+                with col3:
+                    try:
+                        total_balance = filtered_df['current_balance'].sum() if 'current_balance' in filtered_df.columns else len(filtered_df) * 5000
+                        st.metric("Total Exposure", f"${total_balance:,.0f}")
+                    except:
+                        st.metric("Total Exposure", "N/A")
+                
+                with col4:
+                    try:
+                        expected_loss_segment = (filtered_df['risk_score'] * filtered_df['current_balance']).sum() if 'current_balance' in filtered_df.columns else total_balance * avg_score
+                        st.metric("Expected Loss", f"${expected_loss_segment:,.0f}")
+                    except:
+                        st.metric("Expected Loss", "N/A")
+                
                 # Format for display
                 display_df = filtered_df[['customer_id', 'risk_score', 'risk_level', 'top_feature_1']].copy()
                 display_df['risk_score'] = display_df['risk_score'].apply(format_risk_score)
                 display_df.columns = ['Customer ID', 'Risk Score', 'Risk Level', 'Top Risk Driver']
                 
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
                 st.caption(f"Showing {len(filtered_df)} customers with {selected_risk_level} risk level")
             else:
                 st.info(f"No customers found with {selected_risk_level} risk level.")
-            
-            st.markdown("---")
-        
-        # Rising risk customers table with improved styling
-        st.markdown("### ⚠️ Rising Risk Customers")
-        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Customers with increasing risk scores requiring immediate attention</p>", unsafe_allow_html=True)
-        
-        rising_df = load_rising_risk_customers()
-        
-        if rising_df is None or len(rising_df) == 0:
-            st.info("No rising risk customers detected at this time.")
-        else:
-            # Format risk scores as percentages
-            display_df = rising_df.copy()
-            display_df['risk_score'] = display_df['risk_score'].apply(format_risk_score)
-            display_df['risk_change'] = display_df['risk_change'].apply(lambda x: f"+{x:.2%}")
-            
-            # Rename columns for display
-            display_df.columns = ['Customer ID', 'Risk Score', 'Risk Level', 'Top Risk Driver', 'Risk Increase']
-            
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
-        
-        st.markdown("---")
-        
-        # Trigger Interventions button
-        col1, col2, col3 = st.columns([1, 2, 1])
-        
-        with col2:
-            if st.button("🚀 Trigger Interventions for High Risk Customers", use_container_width=True):
-                # Get high-risk customers
-                high_risk_df = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]
-                high_risk_count = len(high_risk_df)
-                
-                if high_risk_count > 0 and engine is not None:
-                    try:
-                        from sqlalchemy import text
-                        from datetime import datetime
-                        
-                        # Insert intervention records for each high-risk customer
-                        with engine.begin() as conn:
-                            for _, row in high_risk_df.iterrows():
-                                # Determine intervention type based on risk level
-                                intervention_type = 'urgent_contact' if row['risk_level'] == 'CRITICAL' else 'proactive_outreach'
-                                
-                                # Insert intervention record
-                                insert_query = text("""
-                                    INSERT INTO interventions 
-                                    (customer_id, intervention_type, risk_score, intervention_date, customer_response)
-                                    VALUES (:customer_id, :intervention_type, :risk_score, :intervention_date, :customer_response)
-                                """)
-                                
-                                conn.execute(insert_query, {
                                     'customer_id': row['customer_id'],
                                     'intervention_type': intervention_type,
                                     'risk_score': row['risk_score'],
@@ -1599,128 +1682,6 @@ elif page == "Risk Overview":
                         st.error(f"❌ Error creating interventions: {str(e)}")
                 else:
                     st.warning("⚠️ No high-risk customers found or database not available.")
-        
-        st.markdown("---")
-        
-        # Layer 4: Portfolio Risk Health visualization (moved to bottom)
-        st.markdown("### 📊 Portfolio Risk Health")
-        st.caption("Overall risk distribution across the customer portfolio")
-        
-        # Create two equal columns for charts
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### 📊 Risk Score Distribution")
-            
-            try:
-                # Create histogram using UI component with text annotations
-                thresholds = [
-                    (0.6, "High Risk (0.6)", "orange"),
-                    (0.8, "Critical (0.8)", "red")
-                ]
-                
-                fig = render_histogram(
-                    data=df['risk_score'],
-                    title="Distribution of Customer Risk Scores",
-                    xaxis_title="Risk Score",
-                    yaxis_title="Number of Customers",
-                    thresholds=thresholds
-                )
-                
-                # Add text annotation for faster comprehension
-                import plotly.graph_objects as go
-                
-                # Calculate statistics for annotation
-                avg_score = df['risk_score'].mean()
-                high_risk_pct = (len(df[df['risk_score'] >= 0.6]) / len(df)) * 100
-                
-                # Add annotation text
-                fig.add_annotation(
-                    text=f"Avg: {avg_score:.2%} | High Risk: {high_risk_pct:.1f}%",
-                    xref="paper", yref="paper",
-                    x=0.5, y=1.05,
-                    showarrow=False,
-                    font=dict(size=12, color="#6B7280"),
-                    xanchor="center"
-                )
-                
-                st.plotly_chart(fig, use_container_width=True, key="risk_score_histogram")
-                
-            except Exception as e:
-                # Suppress error and show clean fallback
-                st.info("📊 Risk Score Statistics")
-                col_a, col_b, col_c = st.columns(3)
-                with col_a:
-                    st.metric("Average", f"{df['risk_score'].mean():.2%}")
-                with col_b:
-                    st.metric("Median", f"{df['risk_score'].median():.2%}")
-                with col_c:
-                    st.metric("High Risk %", f"{(len(df[df['risk_score'] >= 0.6]) / len(df) * 100):.1f}%")
-        
-        with col2:
-            st.markdown("#### 🎯 Risk Level Breakdown")
-            
-            try:
-                # Count customers by risk level
-                risk_counts = df['risk_level'].value_counts()
-                
-                # Get consistent color mapping
-                color_map = get_risk_level_color_map()
-                
-                # Calculate tooltip statistics for each risk segment
-                customdata = []
-                for risk_level in risk_counts.index:
-                    segment_df = df[df['risk_level'] == risk_level]
-                    
-                    # Placeholder calculation for average days to delinquency
-                    avg_days_map = {
-                        'CRITICAL': 15,
-                        'HIGH': 30,
-                        'MEDIUM': 60,
-                        'LOW': 120
-                    }
-                    avg_days = avg_days_map.get(risk_level, 90)
-                    
-                    # Find most common risk driver
-                    if 'top_feature_1' in segment_df.columns and len(segment_df) > 0:
-                        most_common_driver = segment_df['top_feature_1'].mode()
-                        if len(most_common_driver) > 0:
-                            most_common_driver = most_common_driver.iloc[0]
-                        else:
-                            most_common_driver = 'N/A'
-                    else:
-                        most_common_driver = 'N/A'
-                    
-                    customdata.append([avg_days, most_common_driver])
-                
-                # Create custom hover template
-                hovertemplate = (
-                    '<b>%{label}</b><br>'
-                    'Customers: %{value}<br>'
-                    'Avg Days to Delinquency: %{customdata[0]}<br>'
-                    'Most Common Driver: %{customdata[1]}<br>'
-                    '<extra></extra>'
-                )
-                
-                # Create pie chart
-                fig = render_pie_chart(
-                    labels=risk_counts.index,
-                    values=risk_counts.values,
-                    title="Customers by Risk Level (Click to Filter)",
-                    color_map=color_map,
-                    customdata=customdata,
-                    hovertemplate=hovertemplate
-                )
-                
-                st.plotly_chart(fig, use_container_width=True, key="risk_level_pie")
-                
-            except Exception as e:
-                # Suppress error and show clean fallback
-                st.info("🎯 Risk Level Breakdown")
-                risk_counts = df['risk_level'].value_counts()
-                for level, count in risk_counts.items():
-                    pct = (count / len(df)) * 100
-                    st.metric(level, f"{count} ({pct:.1f}%)")
 
 # ============================================================================
 # CUSTOMER DEEP DIVE PAGE
@@ -1812,8 +1773,10 @@ elif page == "Customer Deep Dive":
     
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     
-    # Process analysis when button is clicked
-    if analyze_button and customer_id:
+    # Process analysis when button is clicked OR when customer was selected from quick access
+    should_analyze = (analyze_button and customer_id) or (default_customer_id and customer_id)
+    
+    if should_analyze and customer_id:
         # Query database directly for risk score (Option 1: Use existing scores)
         try:
             if engine is None:

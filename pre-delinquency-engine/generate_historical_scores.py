@@ -49,7 +49,7 @@ try:
         scores_created = 0
         
         for customer in customers:
-            current_score = customer['risk_score']
+            current_score = float(customer['risk_score'])  # Convert Decimal to float
             current_date = customer['score_date']
             
             # Generate 2 historical scores (7 days ago and 14 days ago)

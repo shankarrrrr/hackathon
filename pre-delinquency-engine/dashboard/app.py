@@ -25,7 +25,11 @@ from ui_components import (
     render_pie_chart,
     render_scatter_plot,
     render_confusion_matrix,
-    render_footer
+    render_footer,
+    render_critical_action_panel,
+    render_rising_risk_panel_enhanced,
+    render_risk_driver_explainability,
+    suggest_interventions
 )
 
 # Page configuration
@@ -86,18 +90,38 @@ st.sidebar.markdown("---")
 
 # Page selector with improved styling
 st.sidebar.markdown("<h3 style='font-size: 0.6875rem; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem;'>📍 NAVIGATION</h3>", unsafe_allow_html=True)
+
+# Page descriptions for action-oriented navigation
+page_descriptions = {
+    "Action Center": "Take immediate action on critical customers",
+    "Risk Overview": "Monitor portfolio health and identify trends",
+    "Customer Deep Dive": "Investigate individual customer risk profiles",
+    "Interventions Tracker": "Track and manage intervention outcomes",
+    "Real-time Monitor": "Watch live risk score updates",
+    "Model Performance": "Evaluate model accuracy and effectiveness",
+    "Data Management": "Manage data and system operations"
+}
+
 page = st.sidebar.radio(
     "Navigate to:",
     [
+        "Action Center",
         "Risk Overview",
         "Customer Deep Dive",
+        "Interventions Tracker",
         "Real-time Monitor",
         "Model Performance",
-        "Interventions Tracker",
         "Data Management"
     ],
     label_visibility="collapsed"
 )
+
+# Display description for selected page
+if page in page_descriptions:
+    st.sidebar.markdown(
+        f"<p style='font-size: 0.75rem; color: #6B7280; margin-top: 0.5rem; margin-bottom: 0.5rem; font-style: italic;'>{page_descriptions[page]}</p>",
+        unsafe_allow_html=True
+    )
 
 st.sidebar.markdown("---")
 
@@ -289,6 +313,418 @@ def load_recent_risk_scores():
         return None
 
 
+def calculate_kpi_metrics(df, engine):
+    """
+    Calculate decision-oriented KPI metrics.
+    
+    Args:
+        df: DataFrame from load_latest_risk_scores()
+        engine: SQLAlchemy database engine
+        
+    Returns:
+        dict with keys: customers_at_risk_today, defaults_avoided_mtd,
+                       intervention_effectiveness, financial_impact_prevented
+    
+    Requirements: 2.1, 2.2, 2.3, 2.4, 2.6
+    """
+    import pandas as pd
+    from sqlalchemy import text
+    from datetime import datetime
+    
+    # Initialize result dictionary with default values
+    result = {
+        'customers_at_risk_today': 0,
+        'defaults_avoided_mtd': 0,
+        'intervention_effectiveness': 0.0,
+        'financial_impact_prevented': 0.0
+    }
+    
+    # 1. Calculate "Customers at Risk Today" by counting HIGH/CRITICAL customers
+    if df is not None and len(df) > 0:
+        result['customers_at_risk_today'] = len(df[df['risk_level'].isin(['HIGH', 'CRITICAL'])])
+    
+    # 2-4. Calculate intervention metrics from database
+    if engine is not None:
+        try:
+            # Get first day of current month
+            current_date = datetime.now()
+            month_start = current_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            
+            # Query interventions table for MTD data
+            query = text("""
+                SELECT 
+                    COUNT(*) as total_interventions,
+                    SUM(CASE 
+                        WHEN customer_response IN ('contacted', 'payment_made', 'plan_agreed') 
+                        THEN 1 
+                        ELSE 0 
+                    END) as successful_interventions
+                FROM interventions
+                WHERE intervention_date >= :month_start
+            """)
+            
+            with engine.connect() as conn:
+                query_result = conn.execute(query, {'month_start': month_start}).fetchone()
+                
+                if query_result:
+                    total_interventions = query_result[0] or 0
+                    successful_interventions = query_result[1] or 0
+                    
+                    # 2. Defaults Avoided (MTD) = successful interventions
+                    result['defaults_avoided_mtd'] = successful_interventions
+                    
+                    # 3. Intervention Effectiveness = successful / total
+                    if total_interventions > 0:
+                        result['intervention_effectiveness'] = successful_interventions / total_interventions
+                    else:
+                        result['intervention_effectiveness'] = 0.0
+                    
+                    # 4. Financial Impact Prevented = defaults_avoided * $5000
+                    result['financial_impact_prevented'] = successful_interventions * 5000.0
+        
+        except Exception as e:
+            # Log error but return default values to avoid breaking the dashboard
+            import streamlit as st
+            st.warning(f"⚠️ Could not calculate intervention metrics: {str(e)}")
+    
+    return result
+
+
+def calculate_intervention_simulation(df, engine):
+    """
+    Calculate expected outcomes if interventions are triggered today.
+    
+    Args:
+        df: DataFrame from load_latest_risk_scores()
+        engine: SQLAlchemy database engine
+        
+    Returns:
+        dict with keys: high_risk_count, expected_success_rate, 
+                       expected_defaults_prevented, expected_reduction_pct
+    
+    Requirements: 9.2, 9.3, 9.5, 9.6
+    """
+    from sqlalchemy import text
+    from datetime import datetime, timedelta
+    
+    # Initialize result dictionary with default values
+    result = {
+        'high_risk_count': 0,
+        'expected_success_rate': 0.0,
+        'expected_defaults_prevented': 0,
+        'expected_reduction_pct': 0.0
+    }
+    
+    # 1. Count HIGH/CRITICAL customers from current dataset
+    if df is not None and len(df) > 0:
+        result['high_risk_count'] = len(df[df['risk_level'].isin(['HIGH', 'CRITICAL'])])
+    
+    # 2. Query interventions table for last 90 days to calculate historical success rate
+    if engine is not None and result['high_risk_count'] > 0:
+        try:
+            # Calculate date 90 days ago
+            ninety_days_ago = datetime.now() - timedelta(days=90)
+            
+            # Query interventions table for last 90 days
+            query = text("""
+                SELECT 
+                    COUNT(*) as total_interventions,
+                    SUM(CASE 
+                        WHEN customer_response IN ('contacted', 'payment_made', 'plan_agreed') 
+                        THEN 1 
+                        ELSE 0 
+                    END) as successful_interventions
+                FROM interventions
+                WHERE intervention_date >= :ninety_days_ago
+            """)
+            
+            with engine.connect() as conn:
+                query_result = conn.execute(query, {'ninety_days_ago': ninety_days_ago}).fetchone()
+                
+                if query_result:
+                    total_interventions = query_result[0] or 0
+                    successful_interventions = query_result[1] or 0
+                    
+                    # Calculate historical success rate
+                    if total_interventions > 0:
+                        result['expected_success_rate'] = successful_interventions / total_interventions
+                    else:
+                        # Default to 0.0 if no historical data
+                        result['expected_success_rate'] = 0.0
+                    
+                    # 3. Calculate expected defaults prevented as: high_risk_count * success_rate
+                    result['expected_defaults_prevented'] = int(
+                        result['high_risk_count'] * result['expected_success_rate']
+                    )
+                    
+                    # 4. Calculate expected reduction percentage
+                    if result['high_risk_count'] > 0:
+                        result['expected_reduction_pct'] = (
+                            result['expected_defaults_prevented'] / result['high_risk_count']
+                        ) * 100
+                    else:
+                        result['expected_reduction_pct'] = 0.0
+        
+        except Exception as e:
+            # Log error but return default values to avoid breaking the dashboard
+            import streamlit as st
+            st.warning(f"⚠️ Could not calculate intervention simulation: {str(e)}")
+    
+    return result
+
+
+def calculate_portfolio_risk_drivers(df):
+    """
+    Calculate aggregated risk drivers across portfolio.
+
+    Args:
+        df: DataFrame from load_latest_risk_scores()
+
+    Returns:
+        DataFrame with columns: driver_name, contribution_pct, customer_count
+        Sorted by contribution_pct descending, limited to top 5
+
+    Requirements: 5.1, 5.4, 5.5
+    """
+    import pandas as pd
+
+    # Handle empty or None DataFrame
+    if df is None or len(df) == 0:
+        return pd.DataFrame(columns=['driver_name', 'contribution_pct', 'customer_count'])
+
+    # Check if required columns exist
+    if 'top_feature_1' not in df.columns or 'top_feature_1_impact' not in df.columns:
+        return pd.DataFrame(columns=['driver_name', 'contribution_pct', 'customer_count'])
+
+    # Filter out rows with missing top_feature_1 or top_feature_1_impact
+    valid_df = df[df['top_feature_1'].notna() & df['top_feature_1_impact'].notna()].copy()
+
+    if len(valid_df) == 0:
+        return pd.DataFrame(columns=['driver_name', 'contribution_pct', 'customer_count'])
+
+    # Group by top_feature_1 and aggregate
+    driver_contributions = valid_df.groupby('top_feature_1').agg({
+        'top_feature_1_impact': 'sum',
+        'customer_id': 'count'
+    }).reset_index()
+
+    # Rename columns for clarity
+    driver_contributions.columns = ['driver_name', 'total_impact', 'customer_count']
+
+    # Calculate percentage contribution
+    total_impact = driver_contributions['total_impact'].sum()
+
+    if total_impact > 0:
+        driver_contributions['contribution_pct'] = (
+            driver_contributions['total_impact'] / total_impact * 100
+        )
+    else:
+        driver_contributions['contribution_pct'] = 0.0
+
+    # Sort by contribution percentage descending and limit to top 5
+    top_drivers = driver_contributions.nlargest(5, 'contribution_pct')
+
+    # Select and reorder columns for output
+    result = top_drivers[['driver_name', 'contribution_pct', 'customer_count']].reset_index(drop=True)
+
+    return result
+def calculate_time_since_last_action(customer_id, engine):
+    """
+    Calculate time since last intervention for a customer.
+
+    Args:
+        customer_id: Customer UUID
+        engine: SQLAlchemy database engine
+
+    Returns:
+        dict with keys: hours_since_last_action, escalation_required,
+                       last_intervention_date, formatted_time
+
+    Requirements: 10.3, 10.4, 10.5, 10.6
+    """
+    from sqlalchemy import text
+    from datetime import datetime
+
+    # Initialize result dictionary with default values
+    result = {
+        'hours_since_last_action': None,
+        'escalation_required': False,
+        'last_intervention_date': None,
+        'formatted_time': 'No previous action'
+    }
+
+    if engine is None:
+        return result
+
+    try:
+        # Query interventions table for most recent intervention_date per customer
+        query = text("""
+            SELECT MAX(intervention_date) as last_intervention_date
+            FROM interventions
+            WHERE customer_id = :customer_id
+        """)
+
+        with engine.connect() as conn:
+            query_result = conn.execute(query, {'customer_id': customer_id}).fetchone()
+
+            if query_result and query_result[0] is not None:
+                last_intervention_date = query_result[0]
+                result['last_intervention_date'] = last_intervention_date
+
+                # Calculate hours since last action as (current_time - last_intervention_date)
+                current_time = datetime.now()
+
+                # Handle timezone-aware datetime
+                if last_intervention_date.tzinfo is not None:
+                    # Make current_time timezone-aware to match
+                    import pytz
+                    current_time = current_time.replace(tzinfo=pytz.UTC)
+
+                time_diff = current_time - last_intervention_date
+                hours_since_last_action = time_diff.total_seconds() / 3600
+
+                result['hours_since_last_action'] = hours_since_last_action
+
+                # Format time as "X days Y hours"
+                days = int(hours_since_last_action // 24)
+                hours = int(hours_since_last_action % 24)
+
+                if days > 0:
+                    result['formatted_time'] = f"{days} days {hours} hours"
+                else:
+                    result['formatted_time'] = f"{hours} hours"
+
+    except Exception as e:
+        # Log error but return default values to avoid breaking the dashboard
+        import streamlit as st
+        st.warning(f"⚠️ Could not calculate time since last action for customer {customer_id}: {str(e)}")
+
+    return result
+
+
+def determine_escalation_required(customer_id, risk_level, engine):
+    """
+    Determine if escalation is required based on risk_level and hours since last action.
+
+    Args:
+        customer_id: Customer UUID
+        risk_level: Customer's risk level (LOW, MEDIUM, HIGH, CRITICAL)
+        engine: SQLAlchemy database engine
+
+    Returns:
+        bool: True if escalation is required, False otherwise
+
+    Requirements: 10.5, 10.6
+    """
+    # Get time since last action
+    time_info = calculate_time_since_last_action(customer_id, engine)
+    hours_since_last_action = time_info['hours_since_last_action']
+
+    # If no previous action, no escalation required
+    if hours_since_last_action is None:
+        return False
+
+    # Determine if escalation is required based on risk_level and hours
+    # CRITICAL: escalate if > 48 hours
+    # HIGH: escalate if > 72 hours
+    if risk_level == 'CRITICAL' and hours_since_last_action > 48:
+        return True
+    elif risk_level == 'HIGH' and hours_since_last_action > 72:
+        return True
+    else:
+        return False
+
+
+
+
+def trigger_interventions_for_critical_customers(df):
+    """
+    Create intervention records in database for all HIGH/CRITICAL customers.
+
+    Args:
+        df: DataFrame from load_latest_risk_scores() filtered for HIGH/CRITICAL
+
+    Returns:
+        dict: Result with keys 'success' (bool), 'count' (int), 'message' (str)
+
+    Requirements: 1.5
+    """
+    if engine is None:
+        return {
+            'success': False,
+            'count': 0,
+            'message': 'Database connection not available'
+        }
+
+    try:
+        from sqlalchemy import text
+        from datetime import datetime
+        import uuid
+
+        # Filter for HIGH and CRITICAL risk levels
+        critical_df = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]
+
+        if len(critical_df) == 0:
+            return {
+                'success': True,
+                'count': 0,
+                'message': 'No critical customers found'
+            }
+
+        # Prepare intervention records
+        interventions_created = 0
+
+        with engine.begin() as conn:
+            for _, row in critical_df.iterrows():
+                # Determine intervention_type based on risk_level
+                # CRITICAL → urgent_contact, HIGH → proactive_outreach
+                intervention_type = 'urgent_contact' if row['risk_level'] == 'CRITICAL' else 'proactive_outreach'
+
+                # Create intervention record
+                query = text("""
+                    INSERT INTO interventions (
+                        intervention_id,
+                        customer_id,
+                        intervention_date,
+                        intervention_type,
+                        risk_score,
+                        delivery_status,
+                        customer_response
+                    ) VALUES (
+                        :intervention_id,
+                        :customer_id,
+                        :intervention_date,
+                        :intervention_type,
+                        :risk_score,
+                        'pending',
+                        'pending'
+                    )
+                """)
+
+                conn.execute(query, {
+                    'intervention_id': str(uuid.uuid4()),
+                    'customer_id': row['customer_id'],
+                    'intervention_date': datetime.now(),
+                    'intervention_type': intervention_type,
+                    'risk_score': float(row['risk_score'])
+                })
+
+                interventions_created += 1
+
+        return {
+            'success': True,
+            'count': interventions_created,
+            'message': f'Successfully created {interventions_created} intervention(s)'
+        }
+
+    except Exception as e:
+        return {
+            'success': False,
+            'count': 0,
+            'message': f'Error creating interventions: {str(e)}'
+        }
+
+
 # ============================================================================
 # MAIN CONTENT AREA
 # ============================================================================
@@ -298,6 +734,7 @@ st.markdown(f"<h1 style='margin-bottom: 0.5rem;'>📈 {page}</h1>", unsafe_allow
 
 # Add page description based on selected page
 page_descriptions = {
+    "Action Center": "Critical actions and decisions requiring immediate attention for high-risk customers.",
     "Risk Overview": "Monitor key risk metrics and identify high-risk customers across your portfolio.",
     "Customer Deep Dive": "Analyze individual customer risk profiles with AI-powered explanations.",
     "Real-time Monitor": "Track risk scores updating in real-time with automatic refresh capability.",
@@ -309,10 +746,167 @@ page_descriptions = {
 st.markdown(f"<p style='color: #000000; font-size: 15px; margin-bottom: 2rem;'>{page_descriptions.get(page, '')}</p>", unsafe_allow_html=True)
 
 # ============================================================================
+# ACTION CENTER PAGE
+# ============================================================================
+
+if page == "Action Center":
+    # Header with refresh button
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.markdown("### 🚨 Action Center")
+    with col2:
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Load latest risk scores
+    df = load_latest_risk_scores()
+    
+    if df is None or len(df) == 0:
+        st.info("📭 No risk score data available. Please run batch scoring first.")
+    else:
+        # Layer 1: Critical Action Panel
+        render_critical_action_panel(df, engine)
+        
+        # Handle trigger interventions action
+        if st.session_state.get('trigger_interventions_action', False):
+            with st.spinner('Creating interventions...'):
+                result = trigger_interventions_for_critical_customers(df)
+            
+            if result['success']:
+                if result['count'] > 0:
+                    st.success(f"✅ {result['message']}")
+                else:
+                    st.info(f"ℹ️ {result['message']}")
+            else:
+                st.error(f"❌ {result['message']}")
+            
+            # Clear the action flag
+            st.session_state['trigger_interventions_action'] = False
+        
+        st.markdown("---")
+        
+        # Layer 1: Decision-Oriented KPI Cards
+        st.markdown("### 📊 Key Performance Indicators")
+        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Decision-focused metrics with time context</p>", unsafe_allow_html=True)
+        
+        # Calculate KPI metrics
+        kpi_metrics = calculate_kpi_metrics(df, engine)
+        
+        # Display KPI cards in 4-column layout
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                label="Customers at Risk Today",
+                value=f"{kpi_metrics['customers_at_risk_today']:,}",
+                delta=None,
+                help="Count of customers with HIGH or CRITICAL risk level requiring immediate attention"
+            )
+        
+        with col2:
+            st.metric(
+                label="Defaults Avoided (MTD)",
+                value=f"{kpi_metrics['defaults_avoided_mtd']:,}",
+                delta=None,
+                help="Month-to-date count of successful interventions (contacted, payment made, or plan agreed)"
+            )
+        
+        with col3:
+            effectiveness_pct = kpi_metrics['intervention_effectiveness'] * 100
+            st.metric(
+                label="Intervention Effectiveness",
+                value=f"{effectiveness_pct:.1f}%",
+                delta=None,
+                help="Percentage of interventions with positive customer responses this month"
+            )
+        
+        with col4:
+            financial_impact = kpi_metrics['financial_impact_prevented']
+            st.metric(
+                label="Financial Impact Prevented",
+                value=f"${financial_impact:,.0f}",
+                delta=None,
+                help="Estimated monetary value of avoided defaults (defaults avoided × $5,000)"
+            )
+        
+        st.markdown("---")
+        
+        # Layer 1: Intervention Simulation
+        st.markdown("### 🎯 Intervention Simulation")
+        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Predicted outcomes if interventions are triggered today</p>", unsafe_allow_html=True)
+        
+        # Calculate intervention simulation
+        simulation_result = calculate_intervention_simulation(df, engine)
+        
+        # Determine impact level and visual indicator
+        reduction_pct = simulation_result['expected_reduction_pct']
+        if reduction_pct >= 50:
+            impact_level = "HIGH"
+            impact_color = "#28a745"  # Green
+            impact_icon = "🟢"
+        elif reduction_pct >= 30:
+            impact_level = "MEDIUM"
+            impact_color = "#ffc107"  # Yellow
+            impact_icon = "🟡"
+        elif reduction_pct > 0:
+            impact_level = "LOW"
+            impact_color = "#fd7e14"  # Orange
+            impact_icon = "🟠"
+        else:
+            impact_level = "NONE"
+            impact_color = "#6c757d"  # Gray
+            impact_icon = "⚪"
+        
+        # Display main simulation result in info box
+        st.info(
+            f"{impact_icon} **If we intervene today, expected default reduction = {reduction_pct:.1f}%**"
+        )
+        
+        # Display supporting metrics in columns
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                label="High-Risk Customers",
+                value=simulation_result['high_risk_count'],
+                help="Number of customers with HIGH or CRITICAL risk level"
+            )
+        
+        with col2:
+            success_rate_pct = simulation_result['expected_success_rate'] * 100
+            st.metric(
+                label="Historical Success Rate",
+                value=f"{success_rate_pct:.1f}%",
+                help="Success rate of interventions over the last 90 days"
+            )
+        
+        with col3:
+            st.metric(
+                label="Expected Impact Level",
+                value=impact_level,
+                help="Impact level based on expected reduction percentage"
+            )
+        
+        st.markdown("---")
+        
+        # Layer 2: Rising Risk Customers
+        rising_risk_df = load_rising_risk_customers()
+        render_rising_risk_panel_enhanced(rising_risk_df)
+        
+        st.markdown("---")
+        
+        # Layer 2: Risk Driver Explainability
+        portfolio_drivers = calculate_portfolio_risk_drivers(df)
+        render_risk_driver_explainability(portfolio_drivers)
+
+# ============================================================================
 # RISK OVERVIEW PAGE
 # ============================================================================
 
-if page == "Risk Overview":
+elif page == "Risk Overview":
     # Header with refresh button
     col1, col2 = st.columns([4, 1])
     with col1:
@@ -372,67 +966,34 @@ if page == "Risk Overview":
         
         st.markdown("---")
         
-        # Risk distribution histogram and pie chart with improved spacing
-        st.markdown("### 📊 Risk Distribution Analysis")
-        st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
+        # Display filtered customer table if a risk segment is selected (Task 9.1)
+        selected_risk_level = st.session_state.get('selected_risk_level', None)
         
-        col1, col2 = st.columns(2, gap="large")
-        
-        with col1:
-            st.markdown("#### 📊 Risk Score Distribution")
-            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
+        if selected_risk_level:
+            # Show filter indicator and clear button (Task 9.3)
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(f"### 🔍 Filtered View: {selected_risk_level} Risk Customers")
+            with col2:
+                if st.button("🔄 Clear Filter", use_container_width=True):
+                    st.session_state['selected_risk_level'] = None
+                    st.rerun()
             
-            try:
-                # Create histogram using UI component
-                thresholds = [
-                    (0.6, "High Risk (0.6)", "orange"),
-                    (0.8, "Critical (0.8)", "red")
-                ]
-                
-                fig = render_histogram(
-                    data=df['risk_score'],
-                    title="Distribution of Customer Risk Scores",
-                    xaxis_title="Risk Score",
-                    yaxis_title="Number of Customers",
-                    thresholds=thresholds
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-            except Exception as e:
-                st.warning("⚠️ Chart could not be rendered. Showing data summary instead.")
-                st.write("**Risk Score Statistics:**")
-                st.write(df['risk_score'].describe())
-                st.info("The dashboard will continue operating. Chart rendering issue logged.")
-        
-        with col2:
-            st.markdown("#### 🎯 Risk Level Breakdown")
-            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
+            # Filter customer table based on selected segment
+            filtered_df = df[df['risk_level'] == selected_risk_level].copy()
             
-            try:
-                # Count customers by risk level
-                risk_counts = df['risk_level'].value_counts()
+            if len(filtered_df) > 0:
+                # Format for display
+                display_df = filtered_df[['customer_id', 'risk_score', 'risk_level', 'top_feature_1']].copy()
+                display_df['risk_score'] = display_df['risk_score'].apply(format_risk_score)
+                display_df.columns = ['Customer ID', 'Risk Score', 'Risk Level', 'Top Risk Driver']
                 
-                # Get consistent color mapping
-                color_map = get_risk_level_color_map()
-                
-                # Create pie chart using UI component
-                fig = render_pie_chart(
-                    labels=risk_counts.index,
-                    values=risk_counts.values,
-                    title="Customers by Risk Level",
-                    color_map=color_map
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-            except Exception as e:
-                st.warning("⚠️ Chart could not be rendered. Showing data table instead.")
-                st.write("**Risk Level Breakdown:**")
-                st.dataframe(df['risk_level'].value_counts())
-                st.info("The dashboard will continue operating. Chart rendering issue logged.")
-        
-        st.markdown("---")
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                st.caption(f"Showing {len(filtered_df)} customers with {selected_risk_level} risk level")
+            else:
+                st.info(f"No customers found with {selected_risk_level} risk level.")
+            
+            st.markdown("---")
         
         # Rising risk customers table with improved styling
         st.markdown("### ⚠️ Rising Risk Customers")
@@ -495,6 +1056,146 @@ if page == "Risk Overview":
                         st.error(f"❌ Error creating interventions: {str(e)}")
                 else:
                     st.warning("⚠️ No high-risk customers found or database not available.")
+        
+        st.markdown("---")
+        
+        # Layer 4: Portfolio Risk Health visualization (moved to bottom)
+        st.markdown("### 📊 Portfolio Risk Health")
+        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Overall risk distribution across the customer portfolio</p>", unsafe_allow_html=True)
+        
+        col1, col2 = st.columns(2, gap="large")
+        
+        with col1:
+            st.markdown("#### 📊 Risk Score Distribution")
+            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
+            
+            try:
+                # Create histogram using UI component with text annotations
+                thresholds = [
+                    (0.6, "High Risk (0.6)", "orange"),
+                    (0.8, "Critical (0.8)", "red")
+                ]
+                
+                fig = render_histogram(
+                    data=df['risk_score'],
+                    title="Distribution of Customer Risk Scores",
+                    xaxis_title="Risk Score",
+                    yaxis_title="Number of Customers",
+                    thresholds=thresholds
+                )
+                
+                # Add text annotation for faster comprehension
+                import plotly.graph_objects as go
+                
+                # Calculate statistics for annotation
+                avg_score = df['risk_score'].mean()
+                high_risk_pct = (len(df[df['risk_score'] >= 0.6]) / len(df)) * 100
+                
+                # Add annotation text
+                fig.add_annotation(
+                    text=f"Avg: {avg_score:.2%} | High Risk: {high_risk_pct:.1f}%",
+                    xref="paper", yref="paper",
+                    x=0.5, y=1.05,
+                    showarrow=False,
+                    font=dict(size=12, color="#6B7280"),
+                    xanchor="center"
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+            except Exception as e:
+                st.warning("⚠️ Chart could not be rendered. Showing data summary instead.")
+                st.write("**Risk Score Statistics:**")
+                st.write(df['risk_score'].describe())
+                st.info("The dashboard will continue operating. Chart rendering issue logged.")
+        
+        with col2:
+            st.markdown("#### 🎯 Risk Level Breakdown")
+            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
+            
+            try:
+                # Count customers by risk level
+                risk_counts = df['risk_level'].value_counts()
+                
+                # Get consistent color mapping
+                color_map = get_risk_level_color_map()
+                
+                # Calculate tooltip statistics for each risk segment
+                # Calculate average days to delinquency (placeholder) and most common risk driver
+                customdata = []
+                for risk_level in risk_counts.index:
+                    segment_df = df[df['risk_level'] == risk_level]
+                    
+                    # Placeholder calculation for average days to delinquency
+                    # In a real system, this would be calculated from actual delinquency data
+                    avg_days_map = {
+                        'CRITICAL': 15,
+                        'HIGH': 30,
+                        'MEDIUM': 60,
+                        'LOW': 120
+                    }
+                    avg_days = avg_days_map.get(risk_level, 90)
+                    
+                    # Find most common risk driver (mode of top_feature_1)
+                    if 'top_feature_1' in segment_df.columns and len(segment_df) > 0:
+                        most_common_driver = segment_df['top_feature_1'].mode()
+                        if len(most_common_driver) > 0:
+                            most_common_driver = most_common_driver.iloc[0]
+                        else:
+                            most_common_driver = 'N/A'
+                    else:
+                        most_common_driver = 'N/A'
+                    
+                    customdata.append([avg_days, most_common_driver])
+                
+                # Create custom hover template with aggregated statistics
+                hovertemplate = (
+                    '<b>%{label}</b><br>'
+                    'Customers: %{value}<br>'
+                    'Avg Days to Delinquency: %{customdata[0]}<br>'
+                    'Most Common Driver: %{customdata[1]}<br>'
+                    '<extra></extra>'
+                )
+                
+                # Create pie chart with custom tooltips and text annotations
+                fig = render_pie_chart(
+                    labels=risk_counts.index,
+                    values=risk_counts.values,
+                    title="Customers by Risk Level (Click to Filter)",
+                    color_map=color_map,
+                    customdata=customdata,
+                    hovertemplate=hovertemplate
+                )
+                
+                # Add text annotation showing total customers
+                import plotly.graph_objects as go
+                total_customers = len(df)
+                fig.add_annotation(
+                    text=f"Total: {total_customers:,} customers",
+                    xref="paper", yref="paper",
+                    x=0.5, y=-0.1,
+                    showarrow=False,
+                    font=dict(size=12, color="#6B7280"),
+                    xanchor="center"
+                )
+                
+                # Display the chart and capture click events
+                selected_points = st.plotly_chart(fig, use_container_width=True, on_select="rerun", key="risk_pie_chart_bottom")
+                
+                # Handle click events - store selected risk level in session state
+                if selected_points and 'selection' in selected_points:
+                    selection = selected_points['selection']
+                    if 'points' in selection and len(selection['points']) > 0:
+                        # Get the clicked risk level
+                        clicked_point = selection['points'][0]
+                        if 'label' in clicked_point:
+                            st.session_state['selected_risk_level'] = clicked_point['label']
+                
+            except Exception as e:
+                st.warning("⚠️ Chart could not be rendered. Showing data table instead.")
+                st.write("**Risk Level Breakdown:**")
+                st.dataframe(df['risk_level'].value_counts())
+                st.info("The dashboard will continue operating. Chart rendering issue logged.")
 
 # ============================================================================
 # CUSTOMER DEEP DIVE PAGE
@@ -670,6 +1371,112 @@ elif page == "Customer Deep Dive":
                                 render_risk_driver_card(i, feature, value, impact, impact_pct)
                         else:
                             st.info("No risk drivers available for this customer.")
+                        
+                        st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
+                        
+                        # Suggested Interventions section (Task 8.2)
+                        st.markdown("### 💡 Suggested Interventions")
+                        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Recommended actions based on risk level and drivers</p>", unsafe_allow_html=True)
+                        
+                        # Get intervention suggestion
+                        intervention_suggestion = suggest_interventions(risk_level, top_drivers)
+                        
+                        intervention_type = intervention_suggestion['intervention_type']
+                        rationale = intervention_suggestion['rationale']
+                        priority = intervention_suggestion['priority']
+                        
+                        # Determine priority badge styling
+                        priority_colors = {
+                            'IMMEDIATE': ('background: #FEE2E2; color: #7F1D1D; border: 1px solid #FCA5A5;'),
+                            'HIGH': ('background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;'),
+                            'NORMAL': ('background: #DBEAFE; color: #1E40AF; border: 1px solid #BFDBFE;')
+                        }
+                        
+                        priority_style = priority_colors.get(priority, priority_colors['NORMAL'])
+                        
+                        # Format intervention type for display
+                        intervention_display = intervention_type.replace('_', ' ').title()
+                        
+                        # Display intervention suggestion card
+                        st.markdown(f"""
+                            <div style='background: #FFFFFF; padding: 1.5rem; border-radius: 8px; 
+                                        border: 1px solid #E5E7EB; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);'>
+                                <div style='display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;'>
+                                    <div>
+                                        <div style='font-size: 1.125rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
+                                            {intervention_display}
+                                        </div>
+                                    </div>
+                                    <div style='{priority_style} padding: 0.375rem 0.75rem; border-radius: 6px; 
+                                                font-weight: 600; font-size: 0.875rem;'>
+                                        {priority} PRIORITY
+                                    </div>
+                                </div>
+                                <div style='background: #F9FAFB; padding: 1rem; border-radius: 6px; 
+                                            border-left: 3px solid #3B82F6; margin-bottom: 1rem;'>
+                                    <div style='font-size: 0.75rem; font-weight: 600; color: #6B7280; 
+                                                text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;'>
+                                        Rationale
+                                    </div>
+                                    <div style='color: #374151; font-size: 0.9375rem; line-height: 1.5;'>
+                                        {rationale}
+                                    </div>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
+                        st.markdown("<div style='margin: 1rem 0;'></div>", unsafe_allow_html=True)
+                        
+                        # Action button to trigger intervention for this customer
+                        if st.button(
+                            f"⚡ Trigger {intervention_display} for this Customer",
+                            key=f"trigger_intervention_{customer_id}",
+                            type="primary",
+                            use_container_width=True
+                        ):
+                            # Create intervention record for this specific customer
+                            with st.spinner('Creating intervention...'):
+                                try:
+                                    from sqlalchemy import text
+                                    from datetime import datetime
+                                    import uuid
+                                    
+                                    if engine is not None:
+                                        with engine.begin() as conn:
+                                            query = text("""
+                                                INSERT INTO interventions (
+                                                    intervention_id,
+                                                    customer_id,
+                                                    intervention_date,
+                                                    intervention_type,
+                                                    risk_score,
+                                                    delivery_status,
+                                                    customer_response
+                                                ) VALUES (
+                                                    :intervention_id,
+                                                    :customer_id,
+                                                    :intervention_date,
+                                                    :intervention_type,
+                                                    :risk_score,
+                                                    'pending',
+                                                    'pending'
+                                                )
+                                            """)
+                                            
+                                            conn.execute(query, {
+                                                'intervention_id': str(uuid.uuid4()),
+                                                'customer_id': customer_id,
+                                                'intervention_date': datetime.now(),
+                                                'intervention_type': intervention_type,
+                                                'risk_score': float(risk_score)
+                                            })
+                                        
+                                        st.success(f"✅ Successfully created {intervention_display} intervention for customer {customer_id[:8]}...")
+                                    else:
+                                        st.error("⚠️ Database connection not available. Cannot create intervention.")
+                                
+                                except Exception as e:
+                                    st.error(f"❌ Error creating intervention: {str(e)}")
         
         except Exception as e:
             st.error(f"❌ Error loading customer data: {str(e)}")

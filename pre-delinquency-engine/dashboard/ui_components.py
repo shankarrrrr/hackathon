@@ -381,8 +381,21 @@ def render_histogram(data, title, xaxis_title, yaxis_title, thresholds=None):
     return fig
 
 
-def render_pie_chart(labels, values, title, color_map=None):
-    """Render pie chart."""
+def render_pie_chart(labels, values, title, color_map=None, customdata=None, hovertemplate=None):
+    """
+    Render pie chart with optional click event support and custom hover tooltips.
+    
+    Args:
+        labels: List of labels for pie slices
+        values: List of values for pie slices
+        title: Chart title
+        color_map: Optional dict mapping labels to colors
+        customdata: Optional list of custom data for each slice (for tooltips)
+        hovertemplate: Optional custom hover template string
+    
+    Returns:
+        Plotly figure object
+    """
     colors = [color_map.get(label, '#6B7280') for label in labels] if color_map else None
     
     fig = go.Figure(data=[go.Pie(
@@ -390,7 +403,9 @@ def render_pie_chart(labels, values, title, color_map=None):
         values=values,
         marker=dict(colors=colors),
         hole=0.4,
-        textfont={'size': 12, 'color': '#000000'}
+        textfont={'size': 12, 'color': '#000000'},
+        customdata=customdata,
+        hovertemplate=hovertemplate
     )])
     
     fig.update_layout(
@@ -515,3 +530,592 @@ def render_footer():
             <div>Last Updated: {last_updated}</div>
         </div>
     """, unsafe_allow_html=True)
+
+
+def render_critical_action_panel(df, engine=None):
+    """
+    Render critical action panel with high-risk customers and action buttons.
+    
+    Args:
+        df: DataFrame from load_latest_risk_scores() filtered for HIGH/CRITICAL
+        engine: SQLAlchemy database engine (optional, for SLA tracking)
+    
+    Requirements: 1.1, 1.3, 1.6, 10.3
+    """
+    # Filter for HIGH and CRITICAL risk levels
+    critical_df = df[df['risk_level'].isin(['HIGH', 'CRITICAL'])]
+    critical_count = len(critical_df)
+    
+    # Display panel header with count
+    st.markdown(f"""
+        <div style='background: #FEF2F2; padding: 1.5rem; border-radius: 8px; 
+                    border-left: 4px solid #DC2626; margin-bottom: 1.5rem;'>
+            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                <div>
+                    <div style='font-size: 0.75rem; font-weight: 600; color: #991B1B; 
+                                text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;'>
+                        🚨 Critical Action Required
+                    </div>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #7F1D1D;'>
+                        {critical_count} Customers Requiring Immediate Attention
+                    </div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Create three action buttons in horizontal layout
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        view_customers = st.button(
+            "👁️ View Critical Customers",
+            key="view_critical_customers",
+            use_container_width=True
+        )
+    
+    with col2:
+        trigger_interventions = st.button(
+            "⚡ Trigger Interventions",
+            key="trigger_interventions",
+            use_container_width=True
+        )
+    
+    with col3:
+        assign_to_agent = st.button(
+            "👤 Assign to Agent",
+            key="assign_to_agent",
+            use_container_width=True
+        )
+    
+    # Handle button actions
+    if view_customers:
+        st.session_state['show_critical_customers'] = True
+    
+    if trigger_interventions:
+        st.session_state['trigger_interventions_action'] = True
+    
+    if assign_to_agent:
+        st.session_state['show_agent_assignment'] = True
+    
+    # Display critical customers table if requested
+    if st.session_state.get('show_critical_customers', False):
+        with st.expander("Critical Customers List", expanded=True):
+            if len(critical_df) > 0:
+                # Import calculate_time_since_last_action function
+                # Note: This function should be available in the app.py context
+                # For now, we'll calculate it inline if engine is available
+                
+                # Format the dataframe for display
+                display_df = critical_df[['customer_id', 'risk_score', 'risk_level', 'top_feature_1']].copy()
+                display_df['risk_score'] = display_df['risk_score'].apply(lambda x: f"{x:.2%}")
+                
+                # Add "Time Since Last Action" column if engine is available
+                if engine is not None:
+                    from sqlalchemy import text
+                    from datetime import datetime
+                    
+                    time_since_action_list = []
+                    escalation_list = []
+                    
+                    for _, row in critical_df.iterrows():
+                        customer_id = row['customer_id']
+                        risk_level = row['risk_level']
+                        
+                        try:
+                            # Query interventions table for most recent intervention_date
+                            query = text("""
+                                SELECT MAX(intervention_date) as last_intervention_date
+                                FROM interventions
+                                WHERE customer_id = :customer_id
+                            """)
+                            
+                            with engine.connect() as conn:
+                                query_result = conn.execute(query, {'customer_id': customer_id}).fetchone()
+                                
+                                if query_result and query_result[0] is not None:
+                                    last_intervention_date = query_result[0]
+                                    
+                                    # Calculate hours since last action
+                                    current_time = datetime.now()
+                                    
+                                    # Handle timezone-aware datetime
+                                    if last_intervention_date.tzinfo is not None:
+                                        import pytz
+                                        current_time = current_time.replace(tzinfo=pytz.UTC)
+                                    
+                                    time_diff = current_time - last_intervention_date
+                                    hours_since_last_action = time_diff.total_seconds() / 3600
+                                    
+                                    # Format time as "X days Y hours"
+                                    days = int(hours_since_last_action // 24)
+                                    hours = int(hours_since_last_action % 24)
+                                    
+                                    if days > 0:
+                                        formatted_time = f"{days} days {hours} hours"
+                                    else:
+                                        formatted_time = f"{hours} hours"
+                                    
+                                    # Determine if escalation is required
+                                    escalation_required = False
+                                    if risk_level == 'CRITICAL' and hours_since_last_action > 48:
+                                        escalation_required = True
+                                    elif risk_level == 'HIGH' and hours_since_last_action > 72:
+                                        escalation_required = True
+                                    
+                                    # Add escalation alert icon if required
+                                    if escalation_required:
+                                        formatted_time = f"🚨 {formatted_time}"
+                                    
+                                    time_since_action_list.append(formatted_time)
+                                    escalation_list.append(escalation_required)
+                                else:
+                                    time_since_action_list.append("No previous action")
+                                    escalation_list.append(False)
+                        
+                        except Exception as e:
+                            time_since_action_list.append("Error")
+                            escalation_list.append(False)
+                    
+                    # Add the time since last action column
+                    display_df['Time Since Last Action'] = time_since_action_list
+                    display_df.columns = ['Customer ID', 'Risk Score', 'Risk Level', 'Primary Risk Driver', 'Time Since Last Action']
+                else:
+                    display_df.columns = ['Customer ID', 'Risk Score', 'Risk Level', 'Primary Risk Driver']
+                
+                # Apply color coding for escalation required rows
+                # Use st.dataframe with styling
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                
+                # Add close button
+                if st.button("Close", key="close_critical_customers"):
+                    st.session_state['show_critical_customers'] = False
+                    st.rerun()
+            else:
+                st.info("No critical customers found.")
+    
+    # Display agent assignment form if requested
+    if st.session_state.get('show_agent_assignment', False):
+        with st.expander("Assign Customers to Agent", expanded=True):
+            if len(critical_df) > 0:
+                st.markdown("### 👤 Agent Assignment")
+                st.markdown("<p style='color: #6B7280; font-size: 14px; margin-bottom: 1rem;'>Select an agent and customers to assign</p>", unsafe_allow_html=True)
+                
+                # Agent selection dropdown
+                agent_list = [
+                    "Agent 1 - John Smith",
+                    "Agent 2 - Sarah Johnson",
+                    "Agent 3 - Michael Brown",
+                    "Agent 4 - Emily Davis",
+                    "Agent 5 - David Wilson"
+                ]
+                
+                selected_agent = st.selectbox(
+                    "Select Agent",
+                    options=agent_list,
+                    help="Choose an agent to assign the selected customers"
+                )
+                
+                st.markdown("<div style='margin: 1rem 0;'></div>", unsafe_allow_html=True)
+                
+                # Customer selection checkboxes
+                st.markdown("**Select Customers to Assign:**")
+                
+                selected_customers = []
+                
+                for idx, row in critical_df.iterrows():
+                    customer_id = row['customer_id']
+                    risk_level = row['risk_level']
+                    risk_score = row['risk_score']
+                    
+                    # Create checkbox for each customer
+                    checkbox_label = f"{customer_id[:8]}... - {risk_level} ({risk_score:.2%})"
+                    
+                    if st.checkbox(checkbox_label, key=f"assign_customer_{customer_id}"):
+                        selected_customers.append(customer_id)
+                
+                st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
+                
+                # Assignment button
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    if st.button("✅ Confirm Assignment", key="confirm_assignment", type="primary", use_container_width=True):
+                        if len(selected_customers) > 0:
+                            # Store assignment in session state (placeholder implementation)
+                            if 'agent_assignments' not in st.session_state:
+                                st.session_state['agent_assignments'] = {}
+                            
+                            for customer_id in selected_customers:
+                                st.session_state['agent_assignments'][customer_id] = selected_agent
+                            
+                            # Display confirmation message
+                            st.success(f"✅ Successfully assigned {len(selected_customers)} customer(s) to {selected_agent}")
+                            
+                            # Clear the form
+                            st.session_state['show_agent_assignment'] = False
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Please select at least one customer to assign.")
+                
+                with col2:
+                    if st.button("❌ Cancel", key="cancel_assignment", use_container_width=True):
+                        st.session_state['show_agent_assignment'] = False
+                        st.rerun()
+            else:
+                st.info("No critical customers available for assignment.")
+
+
+def render_rising_risk_panel_enhanced(df):
+    """
+    Render enhanced rising risk panel with early warning signals.
+    
+    Args:
+        df: DataFrame from load_rising_risk_customers() with columns:
+            - customer_id: str
+            - risk_score: float
+            - risk_level: str
+            - top_feature_1: str
+            - risk_change: float
+    
+    Requirements: 4.1, 4.3, 4.4, 4.5
+    """
+    if df is None or len(df) == 0:
+        st.info("📭 No rising risk customers detected at this time.")
+        return
+    
+    # Display panel header
+    st.markdown("""
+        <div style='font-size: 1.25rem; font-weight: 700; color: #1F2937; margin-bottom: 1rem;'>
+            ⚠️ Rising Risk Customers
+        </div>
+        <p style='color: #6B7280; font-size: 14px; margin-bottom: 1.5rem;'>
+            Early warning signals for customers with rapidly increasing risk
+        </p>
+    """, unsafe_allow_html=True)
+    
+    # Helper function to get early warning signal
+    def get_early_warning_signal(feature_name):
+        """
+        Determine early warning signal based on top_feature_1 keywords.
+        
+        Returns:
+            tuple: (emoji, label) for the warning signal
+        """
+        if feature_name is None:
+            return ("", "")
+        
+        feature_lower = str(feature_name).lower()
+        
+        if "payment" in feature_lower:
+            return ("🔴", "Missed Payment")
+        elif "utilization" in feature_lower:
+            return ("📈", "Utilization Spike")
+        elif "bureau" in feature_lower or "credit" in feature_lower:
+            return ("⚠️", "Bureau Downgrade")
+        else:
+            return ("", "")
+    
+    # Display each rising risk customer
+    for idx, row in df.iterrows():
+        customer_id = row['customer_id']
+        risk_score = row['risk_score']
+        risk_level = row['risk_level']
+        top_feature = row.get('top_feature_1', 'Unknown')
+        risk_change = row.get('risk_change', 0)
+        
+        # Determine if risk acceleration badge should be shown
+        is_accelerating = risk_change > 0.1
+        
+        # Get early warning signal
+        signal_emoji, signal_label = get_early_warning_signal(top_feature)
+        
+        # Get risk level color
+        risk_color = "#DC2626" if risk_level == "CRITICAL" else "#F59E0B"
+        
+        # Build the card HTML
+        acceleration_badge = ""
+        if is_accelerating:
+            acceleration_badge = """
+                <span style='background: #FEE2E2; color: #991B1B; padding: 0.25rem 0.5rem; 
+                             border-radius: 4px; font-size: 0.75rem; font-weight: 600; 
+                             margin-left: 0.5rem;'>
+                    ⚡ RAPID ACCELERATION
+                </span>
+            """
+        
+        warning_signal = ""
+        if signal_emoji and signal_label:
+            warning_signal = f"""
+                <div style='display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;'>
+                    <span style='font-size: 1.25rem;'>{signal_emoji}</span>
+                    <span style='color: #DC2626; font-weight: 600; font-size: 0.875rem;'>
+                        {signal_label}
+                    </span>
+                </div>
+            """
+        
+        # Format risk change with sign
+        risk_change_str = f"+{risk_change:.3f}" if risk_change >= 0 else f"{risk_change:.3f}"
+        risk_change_color = "#DC2626" if risk_change > 0.1 else "#F59E0B"
+        
+        st.markdown(f"""
+            <div style='background: white; padding: 1rem; border-radius: 8px; 
+                        border: 1px solid #E5E7EB; margin-bottom: 1rem;
+                        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);'>
+                <div style='display: flex; justify-content: space-between; align-items: start;'>
+                    <div style='flex: 1;'>
+                        <div style='display: flex; align-items: center; margin-bottom: 0.5rem;'>
+                            <span style='font-weight: 600; color: #1F2937; font-size: 0.875rem;'>
+                                Customer: {customer_id[:8]}...
+                            </span>
+                            <span style='background: {risk_color}; color: white; 
+                                         padding: 0.125rem 0.5rem; border-radius: 4px; 
+                                         font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;'>
+                                {risk_level}
+                            </span>
+                            {acceleration_badge}
+                        </div>
+                        <div style='color: #6B7280; font-size: 0.875rem; margin-bottom: 0.25rem;'>
+                            Risk Score: <span style='font-weight: 600; color: #1F2937;'>{risk_score:.2%}</span>
+                        </div>
+                        <div style='color: #6B7280; font-size: 0.875rem;'>
+                            Primary Driver: <span style='font-weight: 600; color: #1F2937;'>{top_feature}</span>
+                        </div>
+                        {warning_signal}
+                    </div>
+                    <div style='text-align: right;'>
+                        <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
+                            Risk Change
+                        </div>
+                        <div style='font-size: 1.25rem; font-weight: 700; color: {risk_change_color};'>
+                            {risk_change_str}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Display summary statistics
+    total_customers = len(df)
+    accelerating_count = len(df[df['risk_change'] > 0.1])
+    avg_risk_change = df['risk_change'].mean()
+    
+    st.markdown(f"""
+        <div style='background: #F9FAFB; padding: 1rem; border-radius: 8px; 
+                    margin-top: 1rem; border: 1px solid #E5E7EB;'>
+            <div style='display: flex; justify-content: space-around; text-align: center;'>
+                <div>
+                    <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
+                        Total Rising Risk
+                    </div>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #1F2937;'>
+                        {total_customers}
+                    </div>
+                </div>
+                <div>
+                    <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
+                        Rapid Acceleration
+                    </div>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #DC2626;'>
+                        {accelerating_count}
+                    </div>
+                </div>
+                <div>
+                    <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
+                        Avg Risk Change
+                    </div>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #F59E0B;'>
+                        +{avg_risk_change:.3f}
+                    </div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+def render_risk_driver_explainability(drivers_df):
+    """
+    Render risk driver explainability panel showing why portfolio risk is increasing.
+    
+    Args:
+        drivers_df: DataFrame from calculate_portfolio_risk_drivers() with columns:
+            - driver_name: str (feature name)
+            - contribution_pct: float (percentage contribution)
+            - customer_count: int (number of customers affected)
+    
+    Requirements: 5.1, 5.2, 5.3
+    """
+    # Handle empty or None DataFrame
+    if drivers_df is None or len(drivers_df) == 0:
+        st.info("📭 No risk driver data available at this time.")
+        return
+    
+    # Display panel header
+    st.markdown("""
+        <div style='font-size: 1.25rem; font-weight: 700; color: #1F2937; margin-bottom: 1rem;'>
+            🔍 Why is risk increasing?
+        </div>
+        <p style='color: #6B7280; font-size: 14px; margin-bottom: 1.5rem;'>
+            Top risk drivers contributing to portfolio risk increase
+        </p>
+    """, unsafe_allow_html=True)
+    
+    # Helper function to determine color based on contribution level
+    def get_contribution_color(contribution_pct):
+        """
+        Determine color based on contribution percentage.
+        
+        Args:
+            contribution_pct: float percentage value
+            
+        Returns:
+            str: hex color code (red for high, yellow for medium, gray for low)
+        """
+        if contribution_pct >= 25:
+            return "#DC2626"  # Red for high impact
+        elif contribution_pct >= 15:
+            return "#F59E0B"  # Yellow/Orange for medium impact
+        else:
+            return "#6B7280"  # Gray for lower impact
+    
+    # Render each risk driver
+    for idx, row in drivers_df.iterrows():
+        driver_name = row['driver_name']
+        contribution_pct = row['contribution_pct']
+        customer_count = row.get('customer_count', 0)
+        
+        # Determine color based on impact level
+        color = get_contribution_color(contribution_pct)
+        
+        # Format contribution with positive indicator and arrow
+        contribution_str = f"+{contribution_pct:.1f}%"
+        
+        # Build the driver card HTML
+        st.markdown(f"""
+            <div style='background: white; padding: 1rem; border-radius: 8px; 
+                        border: 1px solid #E5E7EB; margin-bottom: 0.75rem;
+                        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);'>
+                <div style='display: flex; justify-content: space-between; align-items: center;'>
+                    <div style='flex: 1;'>
+                        <div style='font-weight: 600; color: #1F2937; font-size: 0.9375rem; 
+                                    margin-bottom: 0.25rem;'>
+                            {driver_name}
+                        </div>
+                        <div style='color: #6B7280; font-size: 0.8125rem;'>
+                            Affecting {customer_count} customer{'s' if customer_count != 1 else ''}
+                        </div>
+                    </div>
+                    <div style='text-align: right; display: flex; align-items: center; gap: 0.5rem;'>
+                        <div style='font-size: 1.5rem; font-weight: 700; color: {color};'>
+                            {contribution_str}
+                        </div>
+                        <div style='font-size: 1.5rem; color: {color};'>
+                            ↑
+                        </div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Display summary information
+    total_drivers = len(drivers_df)
+    total_contribution = drivers_df['contribution_pct'].sum()
+    total_customers_affected = drivers_df['customer_count'].sum()
+    
+    st.markdown(f"""
+        <div style='background: #F9FAFB; padding: 1rem; border-radius: 8px; 
+                    margin-top: 1rem; border: 1px solid #E5E7EB;'>
+            <div style='display: flex; justify-content: space-around; text-align: center;'>
+                <div>
+                    <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
+                        Top Drivers
+                    </div>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #1F2937;'>
+                        {total_drivers}
+                    </div>
+                </div>
+                <div>
+                    <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
+                        Total Contribution
+                    </div>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #DC2626;'>
+                        +{total_contribution:.1f}%
+                    </div>
+                </div>
+                <div>
+                    <div style='font-size: 0.75rem; color: #6B7280; margin-bottom: 0.25rem;'>
+                        Customers Affected
+                    </div>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #1F2937;'>
+                        {total_customers_affected}
+                    </div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+def suggest_interventions(risk_level, top_drivers):
+    """
+    Suggest intervention types based on risk level and drivers.
+    
+    Args:
+        risk_level: Customer's risk level (LOW, MEDIUM, HIGH, CRITICAL)
+        top_drivers: List of dicts with 'feature' and 'impact' keys
+        
+    Returns:
+        dict with keys: intervention_type, rationale, priority
+    
+    Requirements: 6.2, 6.3, 6.4
+    """
+    # Determine intervention type and priority based on risk level
+    if risk_level == 'CRITICAL':
+        intervention_type = 'urgent_contact'
+        priority = 'IMMEDIATE'
+    elif risk_level == 'HIGH':
+        intervention_type = 'proactive_outreach'
+        priority = 'HIGH'
+    else:
+        intervention_type = 'monitoring'
+        priority = 'NORMAL'
+    
+    # Generate rationale based on top risk drivers
+    rationale = ""
+    
+    if top_drivers and len(top_drivers) > 0:
+        # Check for specific driver patterns to customize rationale
+        driver_features = [d.get('feature', '').lower() for d in top_drivers if d.get('feature')]
+        
+        # Check for payment-related drivers
+        if any('payment' in feature for feature in driver_features):
+            rationale = "Payment behavior indicates immediate default risk. Customer has missed or delayed payments, requiring urgent intervention to prevent delinquency."
+        
+        # Check for utilization-related drivers
+        elif any('utilization' in feature for feature in driver_features):
+            rationale = "Credit utilization spike suggests financial stress. Customer may be overextending credit, indicating potential cash flow issues."
+        
+        # Check for bureau/credit-related drivers
+        elif any('bureau' in feature or 'credit' in feature for feature in driver_features):
+            rationale = "Bureau indicators show credit deterioration. External credit factors suggest increased risk across customer's financial profile."
+        
+        # Check for income-related drivers
+        elif any('income' in feature for feature in driver_features):
+            rationale = "Income volatility detected. Changes in income patterns may affect customer's ability to meet payment obligations."
+        
+        # Check for account age or history drivers
+        elif any('account' in feature or 'age' in feature for feature in driver_features):
+            rationale = "Account behavior patterns indicate risk. Historical account management shows concerning trends."
+        
+        # Default rationale for other drivers
+        else:
+            rationale = "Multiple risk factors detected across customer profile. Combination of behavioral and financial indicators suggest elevated risk."
+    else:
+        # Default rationale when no drivers available
+        rationale = f"Customer classified as {risk_level} risk based on overall risk assessment. Intervention recommended based on risk level classification."
+    
+    return {
+        'intervention_type': intervention_type,
+        'rationale': rationale,
+        'priority': priority
+    }

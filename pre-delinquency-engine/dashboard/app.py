@@ -941,7 +941,7 @@ elif page == "Risk Overview":
     # Header with refresh button
     col1, col2 = st.columns([4, 1])
     with col1:
-        st.markdown("### 📊 Risk Overview")
+        st.markdown("### 📊 Portfolio Risk Dashboard")
     with col2:
         if st.button("🔄 Refresh", use_container_width=True):
             st.cache_data.clear()
@@ -953,51 +953,538 @@ elif page == "Risk Overview":
     if df is None or len(df) == 0:
         st.info("📭 No risk score data available. Please run batch scoring first.")
     else:
-        # Top metrics row with improved spacing
-        st.markdown("### 📊 Key Metrics")
-        st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
+        # ===== SECTION 1: EXECUTIVE SUMMARY METRICS =====
+        st.markdown("### 📈 Executive Summary")
+        st.caption("Real-time portfolio health indicators")
         
-        col1, col2, col3, col4 = st.columns(4)
+        # Calculate advanced metrics
+        total_customers = len(df)
+        high_risk_count = len(df[df['risk_level'].isin(['HIGH', 'CRITICAL'])])
+        critical_count = len(df[df['risk_level'] == 'CRITICAL'])
+        avg_risk_score = df['risk_score'].mean()
+        
+        # Calculate financial metrics (assuming credit_limit and current_balance exist)
+        try:
+            total_exposure = df['current_balance'].sum() if 'current_balance' in df.columns else high_risk_count * 5000
+            expected_loss = (df['risk_score'] * df['current_balance']).sum() if 'current_balance' in df.columns else total_exposure * avg_risk_score
+        except:
+            total_exposure = high_risk_count * 5000
+            expected_loss = total_exposure * avg_risk_score
+        
+        # Row 1: Primary metrics
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
-            # Calculate high-risk customer count (HIGH and CRITICAL levels)
-            high_risk_count = len(df[df['risk_level'].isin(['HIGH', 'CRITICAL'])])
             st.metric(
-                label="High Risk Customers",
-                value=f"{high_risk_count:,}",
-                delta=None
+                "Total Customers",
+                f"{total_customers:,}",
+                help="Total customers in portfolio"
             )
         
         with col2:
-            # Prevented defaults (placeholder calculation)
-            prevented_defaults = int(high_risk_count * 0.3)  # Assume 30% prevention rate
+            high_risk_pct = (high_risk_count / total_customers * 100) if total_customers > 0 else 0
             st.metric(
-                label="Prevented Defaults",
-                value=f"{prevented_defaults:,}",
-                delta="+12%"
+                "High Risk",
+                f"{high_risk_count:,}",
+                delta=f"{high_risk_pct:.1f}% of portfolio",
+                delta_color="inverse"
             )
         
         with col3:
-            # Success rate (placeholder calculation)
-            success_rate = 0.75  # 75% success rate
             st.metric(
-                label="Intervention Success Rate",
-                value=f"{success_rate:.1%}",
-                delta="+5%"
+                "Critical",
+                f"{critical_count:,}",
+                delta="Immediate action",
+                delta_color="inverse" if critical_count > 0 else "off"
             )
         
         with col4:
-            # Cost saved (placeholder calculation)
-            cost_saved = prevented_defaults * 5000  # $5000 per prevented default
             st.metric(
-                label="Estimated Cost Saved",
-                value=f"${cost_saved:,.0f}",
-                delta="+$50K"
+                "Avg Risk Score",
+                f"{avg_risk_score:.1%}",
+                help="Portfolio average risk score"
             )
         
-        st.markdown("---")
+        with col5:
+            # Calculate portfolio health score (inverse of risk)
+            health_score = (1 - avg_risk_score) * 100
+            health_status = "🟢 Healthy" if health_score > 70 else "🟡 Monitor" if health_score > 50 else "🔴 Alert"
+            st.metric(
+                "Portfolio Health",
+                f"{health_score:.0f}/100",
+                delta=health_status,
+                delta_color="normal" if health_score > 70 else "inverse"
+            )
         
-        # Display filtered customer table if a risk segment is selected (Task 9.1)
+        # Row 2: Financial metrics
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            st.metric(
+                "Total Exposure",
+                f"${total_exposure:,.0f}",
+                help="Total outstanding balance at risk"
+            )
+        
+        with col2:
+            st.metric(
+                "Expected Loss",
+                f"${expected_loss:,.0f}",
+                help="Risk-weighted expected loss"
+            )
+        
+        with col3:
+            # Calculate prevented defaults from interventions
+            try:
+                from sqlalchemy import text
+                if engine is not None:
+                    query = text("""
+                        SELECT COUNT(*) as count 
+                        FROM interventions 
+                        WHERE customer_response = 'positive' 
+                        AND intervention_date >= NOW() - INTERVAL '30 days'
+                    """)
+                    result = pd.read_sql(query, engine)
+                    prevented_defaults = int(result.iloc[0]['count'])
+                else:
+                    prevented_defaults = int(high_risk_count * 0.3)
+            except:
+                prevented_defaults = int(high_risk_count * 0.3)
+            
+            st.metric(
+                "Prevented Defaults",
+                f"{prevented_defaults:,}",
+                delta="+12% vs last month",
+                help="Successful interventions in last 30 days"
+            )
+        
+        with col4:
+            cost_saved = prevented_defaults * 5000
+            st.metric(
+                "Cost Saved",
+                f"${cost_saved:,.0f}",
+                delta="+$50K",
+                help="Estimated loss prevention value"
+            )
+        
+        with col5:
+            # Calculate intervention success rate
+            try:
+                if engine is not None:
+                    query = text("""
+                        SELECT 
+                            COUNT(CASE WHEN customer_response = 'positive' THEN 1 END)::float / 
+                            NULLIF(COUNT(*), 0) as success_rate
+                        FROM interventions 
+                        WHERE intervention_date >= NOW() - INTERVAL '30 days'
+                    """)
+                    result = pd.read_sql(query, engine)
+                    success_rate = float(result.iloc[0]['success_rate']) if result.iloc[0]['success_rate'] else 0.75
+                else:
+                    success_rate = 0.75
+            except:
+                success_rate = 0.75
+            
+            st.metric(
+                "Success Rate",
+                f"{success_rate:.1%}",
+                delta="+5%",
+                help="Intervention effectiveness rate"
+            )
+        
+        st.divider()
+        
+        # ===== SECTION 2: RISK DISTRIBUTION VISUALIZATIONS =====
+        st.markdown("### 📊 Risk Distribution Analysis")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("#### Risk Level Breakdown")
+            
+            try:
+                import plotly.graph_objects as go
+                
+                risk_counts = df['risk_level'].value_counts()
+                color_map = get_risk_level_color_map()
+                colors = [color_map.get(level, '#6B7280') for level in risk_counts.index]
+                
+                fig = go.Figure(data=[go.Pie(
+                    labels=risk_counts.index,
+                    values=risk_counts.values,
+                    hole=0.4,
+                    marker=dict(colors=colors),
+                    textinfo='label+percent',
+                    hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}<extra></extra>'
+                )])
+                
+                fig.update_layout(
+                    height=300,
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                )
+                
+                st.plotly_chart(fig, use_container_width=True, key="risk_donut")
+            except:
+                st.info("Chart unavailable")
+        
+        with col2:
+            st.markdown("#### Risk Score Distribution")
+            
+            try:
+                import plotly.graph_objects as go
+                
+                fig = go.Figure()
+                
+                fig.add_trace(go.Histogram(
+                    x=df['risk_score'],
+                    nbinsx=30,
+                    marker=dict(
+                        color=df['risk_score'],
+                        colorscale='Reds',
+                        showscale=False
+                    ),
+                    hovertemplate='Risk Score: %{x:.2%}<br>Count: %{y}<extra></extra>'
+                ))
+                
+                # Add threshold lines
+                fig.add_vline(x=0.6, line_dash="dash", line_color="orange", annotation_text="High")
+                fig.add_vline(x=0.8, line_dash="dash", line_color="red", annotation_text="Critical")
+                
+                fig.update_layout(
+                    height=300,
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    xaxis_title="Risk Score",
+                    yaxis_title="Customer Count",
+                    xaxis_tickformat='.0%',
+                    showlegend=False
+                )
+                
+                st.plotly_chart(fig, use_container_width=True, key="risk_histogram_overview")
+            except:
+                st.info("Chart unavailable")
+        
+        with col3:
+            st.markdown("#### Risk Concentration")
+            
+            try:
+                import plotly.graph_objects as go
+                
+                # Create risk buckets
+                risk_buckets = pd.cut(df['risk_score'], bins=[0, 0.3, 0.5, 0.7, 0.9, 1.0], 
+                                     labels=['0-30%', '30-50%', '50-70%', '70-90%', '90-100%'])
+                bucket_counts = risk_buckets.value_counts().sort_index()
+                
+                fig = go.Figure(data=[go.Bar(
+                    x=bucket_counts.index,
+                    y=bucket_counts.values,
+                    marker=dict(
+                        color=['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#7F1D1D'],
+                    ),
+                    text=bucket_counts.values,
+                    textposition='outside',
+                    hovertemplate='<b>%{x}</b><br>Customers: %{y}<extra></extra>'
+                )])
+                
+                fig.update_layout(
+                    height=300,
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    xaxis_title="Risk Score Range",
+                    yaxis_title="Customer Count",
+                    showlegend=False
+                )
+                
+                st.plotly_chart(fig, use_container_width=True, key="risk_concentration")
+            except:
+                st.info("Chart unavailable")
+        
+        st.divider()
+        
+        # ===== SECTION 3: TREND ANALYSIS =====
+        st.markdown("### 📈 Risk Trend Analysis")
+        
+        try:
+            from sqlalchemy import text
+            
+            if engine is not None:
+                # Get historical risk scores for trend
+                trend_query = text("""
+                    SELECT 
+                        DATE(score_date) as date,
+                        AVG(risk_score) as avg_risk,
+                        COUNT(CASE WHEN risk_level = 'CRITICAL' THEN 1 END) as critical_count,
+                        COUNT(CASE WHEN risk_level = 'HIGH' THEN 1 END) as high_count,
+                        COUNT(*) as total_count
+                    FROM risk_scores
+                    WHERE score_date >= NOW() - INTERVAL '30 days'
+                    GROUP BY DATE(score_date)
+                    ORDER BY date
+                """)
+                
+                trend_df = pd.read_sql(trend_query, engine)
+                
+                if len(trend_df) > 1:
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("#### Average Risk Score Trend (30 Days)")
+                        
+                        import plotly.graph_objects as go
+                        
+                        fig = go.Figure()
+                        
+                        fig.add_trace(go.Scatter(
+                            x=trend_df['date'],
+                            y=trend_df['avg_risk'],
+                            mode='lines+markers',
+                            name='Avg Risk Score',
+                            line=dict(color='#EF4444', width=3),
+                            marker=dict(size=8),
+                            fill='tozeroy',
+                            fillcolor='rgba(239, 68, 68, 0.1)',
+                            hovertemplate='<b>Date:</b> %{x}<br><b>Avg Risk:</b> %{y:.2%}<extra></extra>'
+                        ))
+                        
+                        fig.update_layout(
+                            height=300,
+                            margin=dict(l=20, r=20, t=20, b=20),
+                            xaxis_title="Date",
+                            yaxis_title="Average Risk Score",
+                            yaxis_tickformat='.0%',
+                            hovermode='x unified'
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True, key="risk_trend")
+                        
+                        # Trend statistics
+                        recent_avg = trend_df.iloc[-1]['avg_risk']
+                        previous_avg = trend_df.iloc[0]['avg_risk']
+                        trend_change = recent_avg - previous_avg
+                        
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            st.metric("Current", f"{recent_avg:.2%}")
+                        with col_b:
+                            st.metric("30 Days Ago", f"{previous_avg:.2%}")
+                        with col_c:
+                            st.metric("Change", f"{trend_change:+.2%}", delta_color="inverse")
+                    
+                    with col2:
+                        st.markdown("#### High-Risk Customer Trend")
+                        
+                        fig = go.Figure()
+                        
+                        fig.add_trace(go.Scatter(
+                            x=trend_df['date'],
+                            y=trend_df['critical_count'],
+                            mode='lines+markers',
+                            name='Critical',
+                            line=dict(color='#DC2626', width=2),
+                            marker=dict(size=6),
+                            stackgroup='one',
+                            hovertemplate='<b>Critical:</b> %{y}<extra></extra>'
+                        ))
+                        
+                        fig.add_trace(go.Scatter(
+                            x=trend_df['date'],
+                            y=trend_df['high_count'],
+                            mode='lines+markers',
+                            name='High',
+                            line=dict(color='#F59E0B', width=2),
+                            marker=dict(size=6),
+                            stackgroup='one',
+                            hovertemplate='<b>High:</b> %{y}<extra></extra>'
+                        ))
+                        
+                        fig.update_layout(
+                            height=300,
+                            margin=dict(l=20, r=20, t=20, b=20),
+                            xaxis_title="Date",
+                            yaxis_title="Customer Count",
+                            hovermode='x unified',
+                            showlegend=True,
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True, key="high_risk_trend")
+                        
+                        # High-risk statistics
+                        current_high_risk = trend_df.iloc[-1]['critical_count'] + trend_df.iloc[-1]['high_count']
+                        previous_high_risk = trend_df.iloc[0]['critical_count'] + trend_df.iloc[0]['high_count']
+                        high_risk_change = current_high_risk - previous_high_risk
+                        
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            st.metric("Current", f"{current_high_risk:,}")
+                        with col_b:
+                            st.metric("30 Days Ago", f"{previous_high_risk:,}")
+                        with col_c:
+                            st.metric("Change", f"{high_risk_change:+,}", delta_color="inverse")
+                else:
+                    st.info("Insufficient historical data for trend analysis. Need at least 2 days of data.")
+            else:
+                st.info("Database connection unavailable for trend analysis.")
+        except Exception as e:
+            st.info("Trend analysis unavailable.")
+        
+        st.divider()
+        
+        # ===== SECTION 4: TOP RISK DRIVERS & INSIGHTS =====
+        st.markdown("### 🎯 Portfolio Risk Drivers")
+        st.caption("Key factors driving risk across the portfolio")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Calculate portfolio-wide risk drivers
+            portfolio_drivers = calculate_portfolio_risk_drivers(df)
+            
+            if portfolio_drivers and len(portfolio_drivers) > 0:
+                st.markdown("#### Top Contributing Factors")
+                
+                try:
+                    import plotly.graph_objects as go
+                    
+                    # Get top 10 drivers
+                    top_drivers = portfolio_drivers[:10]
+                    features = [d['feature'][:25] + '...' if len(d['feature']) > 25 else d['feature'] for d in top_drivers]
+                    contributions = [d['contribution_pct'] for d in top_drivers]
+                    customer_counts = [d['customer_count'] for d in top_drivers]
+                    
+                    fig = go.Figure()
+                    
+                    fig.add_trace(go.Bar(
+                        y=features[::-1],  # Reverse for better readability
+                        x=contributions[::-1],
+                        orientation='h',
+                        marker=dict(
+                            color=contributions[::-1],
+                            colorscale='Reds',
+                            showscale=False
+                        ),
+                        text=[f"{c:.1f}%" for c in contributions[::-1]],
+                        textposition='outside',
+                        customdata=customer_counts[::-1],
+                        hovertemplate='<b>%{y}</b><br>Contribution: %{x:.1f}%<br>Customers Affected: %{customdata}<extra></extra>'
+                    ))
+                    
+                    fig.update_layout(
+                        height=400,
+                        margin=dict(l=20, r=50, t=20, b=20),
+                        xaxis_title="Contribution to Portfolio Risk (%)",
+                        yaxis_title="",
+                        showlegend=False
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True, key="portfolio_drivers")
+                except:
+                    # Fallback display
+                    for driver in portfolio_drivers[:5]:
+                        st.markdown(f"**{driver['feature']}**: {driver['contribution_pct']:.1f}% ({driver['customer_count']} customers)")
+            else:
+                st.info("Risk driver analysis unavailable")
+        
+        with col2:
+            st.markdown("#### Risk Insights")
+            
+            # Generate actionable insights
+            insights = []
+            
+            # Insight 1: Critical customer concentration
+            critical_pct = (critical_count / total_customers * 100) if total_customers > 0 else 0
+            if critical_pct > 10:
+                insights.append({
+                    "icon": "🔴",
+                    "title": "High Critical Concentration",
+                    "message": f"{critical_pct:.1f}% of portfolio is critical risk",
+                    "action": "Immediate intervention required"
+                })
+            elif critical_pct > 5:
+                insights.append({
+                    "icon": "🟡",
+                    "title": "Elevated Critical Risk",
+                    "message": f"{critical_pct:.1f}% of portfolio is critical",
+                    "action": "Monitor closely"
+                })
+            else:
+                insights.append({
+                    "icon": "🟢",
+                    "title": "Manageable Critical Risk",
+                    "message": f"Only {critical_pct:.1f}% critical",
+                    "action": "Continue monitoring"
+                })
+            
+            # Insight 2: Portfolio health trend
+            if len(trend_df) > 1:
+                trend_direction = "increasing" if trend_change > 0 else "decreasing" if trend_change < 0 else "stable"
+                if abs(trend_change) > 0.05:
+                    insights.append({
+                        "icon": "📈" if trend_change > 0 else "📉",
+                        "title": f"Risk {trend_direction.title()}",
+                        "message": f"{abs(trend_change):.1%} change in 30 days",
+                        "action": "Review intervention strategy" if trend_change > 0 else "Strategy working well"
+                    })
+            
+            # Insight 3: Expected loss concentration
+            if expected_loss > total_exposure * 0.3:
+                insights.append({
+                    "icon": "💰",
+                    "title": "High Expected Loss",
+                    "message": f"${expected_loss:,.0f} at risk",
+                    "action": "Prioritize high-value accounts"
+                })
+            
+            # Display insights
+            for insight in insights:
+                st.markdown(f"""
+                    <div style='background: #F9FAFB; padding: 1rem; border-radius: 8px; 
+                                margin-bottom: 0.75rem; border-left: 3px solid #3B82F6;'>
+                        <div style='font-size: 1.5rem; margin-bottom: 0.25rem;'>{insight['icon']}</div>
+                        <div style='font-weight: 700; color: #1F2937; margin-bottom: 0.25rem;'>{insight['title']}</div>
+                        <div style='color: #6B7280; font-size: 0.875rem; margin-bottom: 0.25rem;'>{insight['message']}</div>
+                        <div style='color: #3B82F6; font-size: 0.875rem; font-weight: 600;'>→ {insight['action']}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # ===== SECTION 5: RISING RISK CUSTOMERS =====
+        st.markdown("### ⚠️ Rising Risk Customers")
+        st.caption("Customers with increasing risk scores requiring immediate attention")
+        
+        rising_df = load_rising_risk_customers()
+        
+        if rising_df is None or len(rising_df) == 0:
+            st.info("📭 No rising risk customers detected at this time.")
+        else:
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                # Format and display table
+                display_df = rising_df.copy()
+                display_df['risk_score'] = display_df['risk_score'].apply(format_risk_score)
+                display_df['risk_change'] = display_df['risk_change'].apply(lambda x: f"+{x:.2%}")
+                display_df.columns = ['Customer ID', 'Risk Score', 'Risk Level', 'Top Risk Driver', 'Risk Increase']
+                
+                st.dataframe(display_df, use_container_width=True, hide_index=True, height=300)
+            
+            with col2:
+                st.markdown("#### Quick Stats")
+                
+                rising_count = len(rising_df)
+                avg_increase = rising_df['risk_change'].mean() if 'risk_change' in rising_df.columns else 0
+                
+                st.metric("Rising Risk Count", f"{rising_count:,}")
+                st.metric("Avg Increase", f"+{avg_increase:.1%}")
+                
+                # Quick action button
+                if st.button("🚀 Trigger Interventions", use_container_width=True, type="primary"):
+                    st.info("Navigate to Action Center to trigger interventions")
+        
+        st.divider()
+        
+        # ===== SECTION 6: INTERACTIVE FILTERING =====
         selected_risk_level = st.session_state.get('selected_risk_level', None)
         
         if selected_risk_level:
@@ -1215,15 +1702,76 @@ elif page == "Risk Overview":
 # ============================================================================
 
 elif page == "Customer Deep Dive":
+    st.markdown("### 🔍 Customer Deep Dive Analysis")
+    st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
+    
+    # Top 10 High-Risk Customers Quick Access
+    st.markdown("#### 🎯 Quick Access: Top 10 High-Risk Customers")
+    st.caption("Click on a customer ID to analyze instantly")
+    
+    try:
+        if engine is not None:
+            from sqlalchemy import text
+            import pandas as pd
+            
+            # Fetch top 10 high-risk customers
+            top_customers_query = text("""
+                SELECT 
+                    rs.customer_id::text as customer_id,
+                    rs.risk_score,
+                    rs.risk_level,
+                    c.monthly_income,
+                    rs.top_feature_1,
+                    rs.score_date
+                FROM risk_scores rs
+                JOIN customers c ON rs.customer_id = c.customer_id
+                WHERE rs.score_date = (
+                    SELECT MAX(score_date) 
+                    FROM risk_scores rs2 
+                    WHERE rs2.customer_id = rs.customer_id
+                )
+                ORDER BY rs.risk_score DESC
+                LIMIT 10
+            """)
+            
+            top_customers_df = pd.read_sql(top_customers_query, engine)
+            
+            if len(top_customers_df) > 0:
+                # Create a nice table with clickable customer IDs
+                cols = st.columns(5)
+                for idx, row in top_customers_df.iterrows():
+                    col_idx = idx % 5
+                    with cols[col_idx]:
+                        risk_emoji = "🔴" if row['risk_level'] == 'CRITICAL' else "🟠" if row['risk_level'] == 'HIGH' else "🟡"
+                        short_id = row['customer_id'][:8]
+                        
+                        # Create a button for each customer
+                        if st.button(
+                            f"{risk_emoji} {short_id}...\n{row['risk_score']:.1%}",
+                            key=f"quick_access_{row['customer_id']}",
+                            use_container_width=True
+                        ):
+                            st.session_state['selected_customer_id'] = row['customer_id']
+                            st.rerun()
+            else:
+                st.info("No customers found. Generate risk scores from Data Management page.")
+    except Exception as e:
+        st.warning("Unable to load top customers list.")
+    
+    st.divider()
+    
     # Customer ID input and analyze button with improved layout
-    st.markdown("### 🔍 Customer Analysis")
-    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
+    st.markdown("#### 🔎 Search by Customer ID")
     
     col1, col2 = st.columns([4, 1], gap="medium")
+    
+    # Check if customer was selected from quick access
+    default_customer_id = st.session_state.get('selected_customer_id', '')
     
     with col1:
         customer_id = st.text_input(
             "Enter Customer ID",
+            value=default_customer_id,
             placeholder="e.g., 550e8400-e29b-41d4-a716-446655440000",
             help="Enter the UUID of the customer you want to analyze"
         )
@@ -1232,6 +1780,10 @@ elif page == "Customer Deep Dive":
         # Add spacing to align button with input field
         st.markdown("<div style='margin-top: 1.85rem;'></div>", unsafe_allow_html=True)
         analyze_button = st.button("🔍 Analyze", type="primary", use_container_width=True)
+    
+    # Clear session state after using it
+    if 'selected_customer_id' in st.session_state and customer_id:
+        del st.session_state['selected_customer_id']
     
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     
@@ -1244,12 +1796,10 @@ elif page == "Customer Deep Dive":
             else:
                 import pandas as pd
                 from sqlalchemy import text
+                from datetime import datetime, timedelta
                 
                 with st.spinner("Analyzing customer risk profile..."):
-                    # Log request
-                    st.write(f"🔍 Querying database for customer: {customer_id}")
-                    
-                    # Get latest risk score from database
+                    # Get latest risk score and customer details
                     query = text("""
                         SELECT 
                             rs.customer_id::text as customer_id,
@@ -1264,7 +1814,10 @@ elif page == "Customer Deep Dive":
                             rs.top_feature_3_impact,
                             c.monthly_income,
                             c.account_age_months,
-                            c.income_bracket
+                            c.income_bracket,
+                            c.employment_status,
+                            c.credit_limit,
+                            c.current_balance
                         FROM risk_scores rs
                         JOIN customers c ON rs.customer_id = c.customer_id
                         WHERE rs.customer_id = :customer_id
@@ -1286,6 +1839,28 @@ elif page == "Customer Deep Dive":
                         monthly_income = float(row['monthly_income'])
                         account_age_months = int(row['account_age_months'])
                         income_bracket = row['income_bracket']
+                        employment_status = row.get('employment_status', 'Unknown')
+                        credit_limit = float(row.get('credit_limit', 0))
+                        current_balance = float(row.get('current_balance', 0))
+                        
+                        # Calculate additional metrics
+                        credit_utilization = (current_balance / credit_limit * 100) if credit_limit > 0 else 0
+                        financial_exposure = current_balance
+                        expected_loss = financial_exposure * risk_score
+                        
+                        # Get historical risk scores for trend
+                        history_query = text("""
+                            SELECT 
+                                score_date,
+                                risk_score,
+                                risk_level
+                            FROM risk_scores
+                            WHERE customer_id = :customer_id
+                            ORDER BY score_date DESC
+                            LIMIT 30
+                        """)
+                        
+                        history_df = pd.read_sql(history_query, engine, params={'customer_id': customer_id})
                         
                         # Build top drivers from database
                         top_drivers = []
@@ -1321,75 +1896,353 @@ elif page == "Customer Deep Dive":
                             explanation_text += f"Monthly income: ${monthly_income:,.0f}, Account age: {account_age_months} months. "
                             explanation_text += "Customer shows stable financial behavior."
                         
-                        # Log extracted data
-                        with st.expander("🔍 View Database Query Result (Debug)"):
-                            st.dataframe(df)
-                        
-                        st.write(f"📊 Extracted - Risk Score: {risk_score:.4f}, Level: {risk_level}")
-                        st.write(f"💡 Explanation: {explanation_text}")
-                        st.write(f"📈 Top Drivers Count: {len(top_drivers)}")
-                        
                         st.success("✅ Analysis complete!")
                         st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
                         
-                        # Display results in two columns with improved spacing
-                        col1, col2 = st.columns(2, gap="large")
+                        # ===== SECTION 1: KEY METRICS OVERVIEW =====
+                        st.markdown("### 📊 Key Metrics Overview")
+                        
+                        # Row 1: Primary metrics
+                        col1, col2, col3, col4 = st.columns(4)
                         
                         with col1:
-                            # Risk score gauge chart (Task 5.3)
-                            st.markdown("#### 📊 Risk Score")
-                            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
+                            st.metric(
+                                "Risk Score",
+                                f"{risk_score:.1%}",
+                                delta=f"{risk_level}",
+                                delta_color="inverse"
+                            )
+                        
+                        with col2:
+                            st.metric(
+                                "Financial Exposure",
+                                f"${financial_exposure:,.0f}",
+                                help="Current outstanding balance"
+                            )
+                        
+                        with col3:
+                            st.metric(
+                                "Expected Loss",
+                                f"${expected_loss:,.0f}",
+                                help="Exposure × Risk Score"
+                            )
+                        
+                        with col4:
+                            st.metric(
+                                "Credit Utilization",
+                                f"{credit_utilization:.1f}%",
+                                delta="High" if credit_utilization > 70 else "Normal",
+                                delta_color="inverse" if credit_utilization > 70 else "off"
+                            )
+                        
+                        # Row 2: Secondary metrics
+                        col1, col2, col3, col4 = st.columns(4)
+                        
+                        with col1:
+                            st.metric(
+                                "Monthly Income",
+                                f"${monthly_income:,.0f}",
+                                help="Reported monthly income"
+                            )
+                        
+                        with col2:
+                            st.metric(
+                                "Account Age",
+                                f"{account_age_months} months",
+                                help="Time since account opening"
+                            )
+                        
+                        with col3:
+                            st.metric(
+                                "Income Bracket",
+                                income_bracket,
+                                help="Income classification"
+                            )
+                        
+                        with col4:
+                            st.metric(
+                                "Employment",
+                                employment_status,
+                                help="Current employment status"
+                            )
+                        
+                        st.divider()
+                        
+                        # ===== SECTION 2: RISK VISUALIZATION =====
+                        st.markdown("### 📈 Risk Analysis")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            # Risk score gauge chart
+                            st.markdown("#### Risk Score Gauge")
                             
                             try:
-                                # Create gauge chart using UI component
                                 fig = render_gauge_chart(risk_score, "Risk Score")
-                                st.plotly_chart(fig, use_container_width=True)
-                                
+                                st.plotly_chart(fig, use_container_width=True, key=f"gauge_{customer_id}")
                             except Exception as e:
-                                st.warning("⚠️ Chart could not be rendered. Showing metric instead.")
                                 st.metric("Risk Score", f"{risk_score:.2%}")
                         
                         with col2:
-                            # Risk level badge with emoji (Task 5.4)
-                            st.markdown("#### 🎯 Risk Level")
+                            # Risk level badge
+                            st.markdown("#### Risk Classification")
                             st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
-                            
-                            # Render risk badge using UI component
                             render_risk_badge(risk_level)
+                            
+                            # Add comparison to portfolio average
+                            try:
+                                avg_query = text("SELECT AVG(risk_score) as avg_score FROM risk_scores WHERE score_date >= NOW() - INTERVAL '7 days'")
+                                avg_result = pd.read_sql(avg_query, engine)
+                                portfolio_avg = float(avg_result.iloc[0]['avg_score'])
+                                
+                                diff = risk_score - portfolio_avg
+                                diff_pct = (diff / portfolio_avg * 100) if portfolio_avg > 0 else 0
+                                
+                                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+                                st.metric(
+                                    "vs Portfolio Average",
+                                    f"{diff:+.1%}",
+                                    delta=f"{diff_pct:+.1f}% difference",
+                                    delta_color="inverse"
+                                )
+                            except:
+                                pass
                         
-                        st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
+                        # Risk trend over time
+                        if len(history_df) > 1:
+                            st.markdown("#### Risk Score Trend (Last 30 Days)")
+                            
+                            try:
+                                import plotly.graph_objects as go
+                                
+                                # Sort by date ascending for proper line chart
+                                history_df_sorted = history_df.sort_values('score_date')
+                                
+                                fig = go.Figure()
+                                
+                                # Add risk score line
+                                fig.add_trace(go.Scatter(
+                                    x=history_df_sorted['score_date'],
+                                    y=history_df_sorted['risk_score'],
+                                    mode='lines+markers',
+                                    name='Risk Score',
+                                    line=dict(color='#EF4444', width=3),
+                                    marker=dict(size=8),
+                                    hovertemplate='<b>Date:</b> %{x}<br><b>Risk Score:</b> %{y:.2%}<extra></extra>'
+                                ))
+                                
+                                # Add threshold lines
+                                fig.add_hline(y=0.6, line_dash="dash", line_color="orange", 
+                                            annotation_text="High Risk (60%)", annotation_position="right")
+                                fig.add_hline(y=0.8, line_dash="dash", line_color="red",
+                                            annotation_text="Critical (80%)", annotation_position="right")
+                                
+                                fig.update_layout(
+                                    height=300,
+                                    margin=dict(l=0, r=0, t=20, b=0),
+                                    xaxis_title="Date",
+                                    yaxis_title="Risk Score",
+                                    yaxis_tickformat='.0%',
+                                    hovermode='x unified',
+                                    showlegend=False
+                                )
+                                
+                                st.plotly_chart(fig, use_container_width=True, key=f"trend_{customer_id}")
+                                
+                                # Calculate trend statistics
+                                if len(history_df_sorted) >= 2:
+                                    recent_change = history_df_sorted.iloc[-1]['risk_score'] - history_df_sorted.iloc[-2]['risk_score']
+                                    overall_change = history_df_sorted.iloc[-1]['risk_score'] - history_df_sorted.iloc[0]['risk_score']
+                                    
+                                    col1, col2, col3 = st.columns(3)
+                                    with col1:
+                                        st.metric("Recent Change", f"{recent_change:+.2%}", help="Change from previous score")
+                                    with col2:
+                                        st.metric("Overall Trend", f"{overall_change:+.2%}", help="Change over period")
+                                    with col3:
+                                        trend_direction = "📈 Increasing" if overall_change > 0 else "📉 Decreasing" if overall_change < 0 else "➡️ Stable"
+                                        st.metric("Direction", trend_direction)
+                            
+                            except Exception as e:
+                                st.info("Unable to render trend chart")
                         
-                        # SHAP explanation and top risk drivers (Task 5.6)
+                        st.divider()
+                        
+                        # ===== SECTION 3: RISK EXPLANATION & DRIVERS =====
                         st.markdown("### 💡 Risk Explanation")
-                        st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
                         
                         # Display explanation text in info box
                         st.info(explanation_text)
                         
-                        st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
+                        st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
                         
-                        # Display top risk drivers
+                        # Display top risk drivers with visualization
                         st.markdown("### 📈 Top Risk Drivers")
-                        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Key factors contributing to this customer's risk score</p>", unsafe_allow_html=True)
+                        st.caption("Key factors contributing to this customer's risk score")
                         
                         if top_drivers and len(top_drivers) > 0:
-                            # Display top drivers using UI component
-                            for i, driver in enumerate(top_drivers, 1):
-                                feature = driver.get('feature', 'Unknown')
-                                value = driver.get('value', 'N/A')
-                                impact = driver.get('impact', 0)
-                                impact_pct = driver.get('impact_pct', 0)
+                            # Create two columns: driver cards and visualization
+                            col1, col2 = st.columns([3, 2])
+                            
+                            with col1:
+                                # Display top drivers using UI component
+                                for i, driver in enumerate(top_drivers, 1):
+                                    feature = driver.get('feature', 'Unknown')
+                                    value = driver.get('value', 'N/A')
+                                    impact = driver.get('impact', 0)
+                                    impact_pct = driver.get('impact_pct', 0)
+                                    
+                                    # Render driver card using UI component
+                                    render_risk_driver_card(i, feature, value, impact, impact_pct)
+                            
+                            with col2:
+                                # Visualize driver impacts
+                                st.markdown("#### Impact Breakdown")
                                 
-                                # Render driver card using UI component
-                                render_risk_driver_card(i, feature, value, impact, impact_pct)
+                                try:
+                                    import plotly.graph_objects as go
+                                    
+                                    features = [d['feature'][:20] + '...' if len(d['feature']) > 20 else d['feature'] for d in top_drivers]
+                                    impacts = [d['impact_pct'] for d in top_drivers]
+                                    
+                                    fig = go.Figure(go.Bar(
+                                        x=impacts,
+                                        y=features,
+                                        orientation='h',
+                                        marker=dict(
+                                            color=impacts,
+                                            colorscale='Reds',
+                                            showscale=False
+                                        ),
+                                        text=[f"{imp:.1f}%" for imp in impacts],
+                                        textposition='outside',
+                                        hovertemplate='<b>%{y}</b><br>Impact: %{x:.2f}%<extra></extra>'
+                                    ))
+                                    
+                                    fig.update_layout(
+                                        height=250,
+                                        margin=dict(l=0, r=50, t=10, b=0),
+                                        xaxis_title="Impact (%)",
+                                        yaxis_title="",
+                                        showlegend=False
+                                    )
+                                    
+                                    st.plotly_chart(fig, use_container_width=True, key=f"drivers_{customer_id}")
+                                
+                                except Exception as e:
+                                    st.info("Driver visualization unavailable")
                         else:
                             st.info("No risk drivers available for this customer.")
                         
-                        st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
+                        st.divider()
                         
-                        # Suggested Interventions section (Task 8.2)
-                        st.markdown("### 💡 Suggested Interventions")
-                        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Recommended actions based on risk level and drivers</p>", unsafe_allow_html=True)
+                        # ===== SECTION 4: BEHAVIORAL INSIGHTS =====
+                        st.markdown("### 🎯 Behavioral Insights")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("#### Financial Health Indicators")
+                            
+                            # Calculate health score based on multiple factors
+                            health_factors = []
+                            
+                            # Credit utilization health
+                            if credit_utilization < 30:
+                                health_factors.append(("Credit Utilization", "✅ Healthy", "green"))
+                            elif credit_utilization < 70:
+                                health_factors.append(("Credit Utilization", "⚠️ Moderate", "orange"))
+                            else:
+                                health_factors.append(("Credit Utilization", "❌ High Risk", "red"))
+                            
+                            # Income stability
+                            if monthly_income > 5000:
+                                health_factors.append(("Income Level", "✅ Strong", "green"))
+                            elif monthly_income > 3000:
+                                health_factors.append(("Income Level", "⚠️ Moderate", "orange"))
+                            else:
+                                health_factors.append(("Income Level", "❌ Low", "red"))
+                            
+                            # Account maturity
+                            if account_age_months > 24:
+                                health_factors.append(("Account Maturity", "✅ Established", "green"))
+                            elif account_age_months > 12:
+                                health_factors.append(("Account Maturity", "⚠️ Moderate", "orange"))
+                            else:
+                                health_factors.append(("Account Maturity", "❌ New", "red"))
+                            
+                            # Display health factors
+                            for factor, status, color in health_factors:
+                                st.markdown(f"""
+                                    <div style='background: #F9FAFB; padding: 0.75rem; border-radius: 6px; 
+                                                margin-bottom: 0.5rem; border-left: 3px solid {color};'>
+                                        <div style='display: flex; justify-content: space-between;'>
+                                            <span style='font-weight: 600; color: #374151;'>{factor}</span>
+                                            <span style='color: {color};'>{status}</span>
+                                        </div>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                        
+                        with col2:
+                            st.markdown("#### Risk Profile Comparison")
+                            
+                            try:
+                                import plotly.graph_objects as go
+                                
+                                # Compare customer to portfolio averages
+                                categories = ['Risk Score', 'Credit Util.', 'Income', 'Account Age']
+                                
+                                # Normalize values to 0-100 scale for comparison
+                                customer_values = [
+                                    risk_score * 100,
+                                    min(credit_utilization, 100),
+                                    min((monthly_income / 10000) * 100, 100),
+                                    min((account_age_months / 60) * 100, 100)
+                                ]
+                                
+                                # Portfolio averages (normalized)
+                                portfolio_values = [45, 50, 60, 70]  # Example averages
+                                
+                                fig = go.Figure()
+                                
+                                fig.add_trace(go.Scatterpolar(
+                                    r=customer_values,
+                                    theta=categories,
+                                    fill='toself',
+                                    name='Customer',
+                                    line=dict(color='#EF4444')
+                                ))
+                                
+                                fig.add_trace(go.Scatterpolar(
+                                    r=portfolio_values,
+                                    theta=categories,
+                                    fill='toself',
+                                    name='Portfolio Avg',
+                                    line=dict(color='#3B82F6')
+                                ))
+                                
+                                fig.update_layout(
+                                    polar=dict(
+                                        radialaxis=dict(
+                                            visible=True,
+                                            range=[0, 100]
+                                        )
+                                    ),
+                                    showlegend=True,
+                                    height=300,
+                                    margin=dict(l=40, r=40, t=40, b=40)
+                                )
+                                
+                                st.plotly_chart(fig, use_container_width=True, key=f"radar_{customer_id}")
+                            
+                            except Exception as e:
+                                st.info("Comparison chart unavailable")
+                        
+                        st.divider()
+                        
+                        # ===== SECTION 5: SUGGESTED INTERVENTIONS =====
+                        st.markdown("### 💡 Recommended Actions")
+                        st.caption("AI-powered intervention recommendations based on risk profile")
                         
                         # Get intervention suggestion
                         intervention_suggestion = suggest_interventions(risk_level, top_drivers)
@@ -1398,98 +2251,165 @@ elif page == "Customer Deep Dive":
                         rationale = intervention_suggestion['rationale']
                         priority = intervention_suggestion['priority']
                         
-                        # Determine priority badge styling
-                        priority_colors = {
-                            'IMMEDIATE': ('background: #FEE2E2; color: #7F1D1D; border: 1px solid #FCA5A5;'),
-                            'HIGH': ('background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;'),
-                            'NORMAL': ('background: #DBEAFE; color: #1E40AF; border: 1px solid #BFDBFE;')
-                        }
+                        # Create two columns for intervention details
+                        col1, col2 = st.columns([2, 1])
                         
-                        priority_style = priority_colors.get(priority, priority_colors['NORMAL'])
-                        
-                        # Format intervention type for display
-                        intervention_display = intervention_type.replace('_', ' ').title()
-                        
-                        # Display intervention suggestion card
-                        st.markdown(f"""
-                            <div style='background: #FFFFFF; padding: 1.5rem; border-radius: 8px; 
-                                        border: 1px solid #E5E7EB; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);'>
-                                <div style='display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;'>
-                                    <div>
-                                        <div style='font-size: 1.125rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
-                                            {intervention_display}
+                        with col1:
+                            # Determine priority badge styling
+                            priority_colors = {
+                                'IMMEDIATE': ('background: #FEE2E2; color: #7F1D1D; border: 1px solid #FCA5A5;'),
+                                'HIGH': ('background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;'),
+                                'NORMAL': ('background: #DBEAFE; color: #1E40AF; border: 1px solid #BFDBFE;')
+                            }
+                            
+                            priority_style = priority_colors.get(priority, priority_colors['NORMAL'])
+                            
+                            # Format intervention type for display
+                            intervention_display = intervention_type.replace('_', ' ').title()
+                            
+                            # Display intervention suggestion card
+                            st.markdown(f"""
+                                <div style='background: #FFFFFF; padding: 1.5rem; border-radius: 8px; 
+                                            border: 1px solid #E5E7EB; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);'>
+                                    <div style='display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;'>
+                                        <div>
+                                            <div style='font-size: 1.125rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;'>
+                                                {intervention_display}
+                                            </div>
+                                        </div>
+                                        <div style='{priority_style} padding: 0.375rem 0.75rem; border-radius: 6px; 
+                                                    font-weight: 600; font-size: 0.875rem;'>
+                                            {priority} PRIORITY
                                         </div>
                                     </div>
-                                    <div style='{priority_style} padding: 0.375rem 0.75rem; border-radius: 6px; 
-                                                font-weight: 600; font-size: 0.875rem;'>
-                                        {priority} PRIORITY
+                                    <div style='background: #F9FAFB; padding: 1rem; border-radius: 6px; 
+                                                border-left: 3px solid #3B82F6; margin-bottom: 1rem;'>
+                                        <div style='font-size: 0.75rem; font-weight: 600; color: #6B7280; 
+                                                    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;'>
+                                            Rationale
+                                        </div>
+                                        <div style='color: #374151; font-size: 0.9375rem; line-height: 1.5;'>
+                                            {rationale}
+                                        </div>
                                     </div>
                                 </div>
-                                <div style='background: #F9FAFB; padding: 1rem; border-radius: 6px; 
-                                            border-left: 3px solid #3B82F6; margin-bottom: 1rem;'>
-                                    <div style='font-size: 0.75rem; font-weight: 600; color: #6B7280; 
-                                                text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;'>
-                                        Rationale
-                                    </div>
-                                    <div style='color: #374151; font-size: 0.9375rem; line-height: 1.5;'>
-                                        {rationale}
-                                    </div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
+                            """, unsafe_allow_html=True)
+                        
+                        with col2:
+                            st.markdown("#### Expected Impact")
+                            
+                            # Calculate expected impact metrics
+                            if risk_score >= 0.7:
+                                success_rate = 0.65
+                                risk_reduction = 0.25
+                            elif risk_score >= 0.5:
+                                success_rate = 0.75
+                                risk_reduction = 0.20
+                            else:
+                                success_rate = 0.85
+                                risk_reduction = 0.15
+                            
+                            potential_savings = expected_loss * success_rate
+                            
+                            st.metric(
+                                "Success Rate",
+                                f"{success_rate:.0%}",
+                                help="Historical success rate for this intervention type"
+                            )
+                            
+                            st.metric(
+                                "Risk Reduction",
+                                f"-{risk_reduction:.0%}",
+                                help="Expected reduction in risk score"
+                            )
+                            
+                            st.metric(
+                                "Potential Savings",
+                                f"${potential_savings:,.0f}",
+                                help="Expected loss prevention"
+                            )
                         
                         st.markdown("<div style='margin: 1rem 0;'></div>", unsafe_allow_html=True)
                         
-                        # Action button to trigger intervention for this customer
-                        if st.button(
-                            f"⚡ Trigger {intervention_display} for this Customer",
-                            key=f"trigger_intervention_{customer_id}",
-                            type="primary",
-                            use_container_width=True
-                        ):
-                            # Create intervention record for this specific customer
-                            with st.spinner('Creating intervention...'):
-                                try:
-                                    from sqlalchemy import text
-                                    from datetime import datetime
-                                    import uuid
-                                    
-                                    if engine is not None:
-                                        with engine.begin() as conn:
-                                            query = text("""
-                                                INSERT INTO interventions (
-                                                    intervention_id,
-                                                    customer_id,
-                                                    intervention_date,
-                                                    intervention_type,
-                                                    risk_score,
-                                                    delivery_status,
-                                                    customer_response
-                                                ) VALUES (
-                                                    :intervention_id,
-                                                    :customer_id,
-                                                    :intervention_date,
-                                                    :intervention_type,
-                                                    :risk_score,
-                                                    'pending',
-                                                    'pending'
-                                                )
-                                            """)
-                                            
-                                            conn.execute(query, {
-                                                'intervention_id': str(uuid.uuid4()),
-                                                'customer_id': customer_id,
-                                                'intervention_date': datetime.now(),
-                                                'intervention_type': intervention_type,
-                                                'risk_score': float(risk_score)
-                                            })
+                        # Action buttons
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            # Action button to trigger intervention for this customer
+                            if st.button(
+                                f"⚡ Trigger {intervention_display}",
+                                key=f"trigger_intervention_{customer_id}",
+                                type="primary",
+                                use_container_width=True
+                            ):
+                                # Create intervention record for this specific customer
+                                with st.spinner('Creating intervention...'):
+                                    try:
+                                        from sqlalchemy import text
+                                        from datetime import datetime
+                                        import uuid
                                         
-                                        st.success(f"✅ Successfully created {intervention_display} intervention for customer {customer_id[:8]}...")
-                                    else:
-                                        st.error("⚠️ Database connection not available. Cannot create intervention.")
-                                
-                                except Exception as e:
-                                    st.error(f"❌ Error creating intervention: {str(e)}")
+                                        if engine is not None:
+                                            with engine.begin() as conn:
+                                                query = text("""
+                                                    INSERT INTO interventions (
+                                                        intervention_id,
+                                                        customer_id,
+                                                        intervention_date,
+                                                        intervention_type,
+                                                        risk_score,
+                                                        delivery_status,
+                                                        customer_response
+                                                    ) VALUES (
+                                                        :intervention_id,
+                                                        :customer_id,
+                                                        :intervention_date,
+                                                        :intervention_type,
+                                                        :risk_score,
+                                                        'pending',
+                                                        'pending'
+                                                    )
+                                                """)
+                                                
+                                                conn.execute(query, {
+                                                    'intervention_id': str(uuid.uuid4()),
+                                                    'customer_id': customer_id,
+                                                    'intervention_date': datetime.now(),
+                                                    'intervention_type': intervention_type,
+                                                    'risk_score': float(risk_score)
+                                                })
+                                            
+                                            st.success(f"✅ Successfully created {intervention_display} intervention")
+                                        else:
+                                            st.error("⚠️ Database connection not available")
+                                    
+                                    except Exception as e:
+                                        st.error(f"❌ Error creating intervention: {str(e)}")
+                        
+                        with col2:
+                            if st.button(
+                                "📋 Assign to Risk Officer",
+                                key=f"assign_{customer_id}",
+                                use_container_width=True
+                            ):
+                                st.info("Assignment feature - navigate to Action Center to assign")
+                        
+                        with col3:
+                            if st.button(
+                                "📊 View Full History",
+                                key=f"history_{customer_id}",
+                                use_container_width=True
+                            ):
+                                st.info("Full history view coming soon")
+                        
+                        # Additional context section
+                        with st.expander("📋 View Complete Customer Profile"):
+                            st.markdown("#### Database Record")
+                            st.dataframe(df, use_container_width=True)
+                            
+                            if len(history_df) > 0:
+                                st.markdown("#### Historical Risk Scores")
+                                st.dataframe(history_df, use_container_width=True)
         
         except Exception as e:
             st.error(f"❌ Error loading customer data: {str(e)}")

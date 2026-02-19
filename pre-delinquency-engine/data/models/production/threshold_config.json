@@ -1,0 +1,9 @@
+{
+  "optimal_threshold": 0.17077197163995175,
+  "thresholds": {
+    "CRITICAL": 0.7,
+    "HIGH": 0.5,
+    "MEDIUM": 0.3,
+    "LOW": 0.0
+  }
+}

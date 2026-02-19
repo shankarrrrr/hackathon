@@ -17,6 +17,7 @@ A production-ready ML system that predicts which customers are at risk of paymen
 ✅ **Real-Time Processing** - Sub-2-second latency from transaction to intervention  
 ✅ **Behavioral Features** - 30+ deviation-based features (not absolute values)  
 ✅ **ML Model** - XGBoost with 0.80 AUC-ROC, optimized for high precision  
+✅ **Auto-Retraining** - Automatic model updates when new customers are added  
 ✅ **Smart Interventions** - Risk-based, multi-channel outreach (phone/SMS/email)  
 ✅ **REST API** - FastAPI with auto-generated documentation  
 ✅ **Scalable** - Horizontal scaling with Kafka consumer groups  
@@ -162,6 +163,8 @@ docker exec delinquency_kafka kafka-console-consumer \
 - `GET /stats` - Aggregate risk statistics
 - `GET /customer/{id}/history` - Customer risk history
 - `GET /high_risk_customers` - List high-risk customers
+- `GET /retraining/status` - Check if model retraining is needed
+- `POST /retraining/trigger` - Manually trigger model retraining
 
 ## Intervention Strategies
 
@@ -216,6 +219,7 @@ pre-delinquency-engine/
 - **KAFKA-SETUP.md** - Kafka setup and configuration
 - **KAFKA-INTEGRATION.md** - Integration patterns
 - **KAFKA-COMPLETE.md** - Kafka implementation details
+- **RETRAINING.md** - Automatic model retraining guide
 
 ## Development Workflow
 

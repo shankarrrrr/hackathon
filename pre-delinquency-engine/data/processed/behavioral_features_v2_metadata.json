@@ -1,0 +1,8 @@
+{
+  "generation_timestamp": "2026-02-19T03:00:37.938434",
+  "simulation_seed": 42,
+  "n_customers": 30000,
+  "weeks_range": "8-16",
+  "autocorrelation_enabled": true,
+  "shocks_enabled": true
+}

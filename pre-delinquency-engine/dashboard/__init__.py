@@ -1,1 +1,1 @@
-"""Dashboard for Pre-Delinquency Intervention Engine"""
+"""Dashboard package for Pre-Delinquency Engine."""

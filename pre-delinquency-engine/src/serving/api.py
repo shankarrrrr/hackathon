@@ -19,6 +19,7 @@ load_dotenv()
 
 from src.feature_engineering.features import BehavioralFeatureEngineering
 from src.streaming.producers import PredictionProducer, DashboardProducer
+from src.models.auto_retrain import AutoRetrainer
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -169,7 +170,9 @@ async def root():
             "batch_predict": "/batch_predict",
             "stats": "/stats",
             "customer_history": "/customer/{customer_id}/history",
-            "high_risk": "/high_risk_customers"
+            "high_risk": "/high_risk_customers",
+            "retraining_status": "/retraining/status",
+            "trigger_retraining": "/retraining/trigger"
         }
     }
 
@@ -248,8 +251,9 @@ async def predict_risk(request: RiskRequest):
             reverse=True
         )[:5]
         
+        # Cap feature impact values to fit database constraints (DECIMAL(5,4) = -9.9999 to 9.9999)
         top_features = [
-            {"feature": feat, "value": float(val)}
+            {"feature": feat, "value": float(max(-9.9999, min(9.9999, val)))}
             for feat, val in sorted_features
         ]
         
@@ -455,6 +459,65 @@ async def get_high_risk_customers(limit: int = 50):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
+
+@app.get("/retraining/status")
+async def get_retraining_status():
+    """
+    Check if model retraining is needed and get history
+    """
+    try:
+        retrainer = AutoRetrainer()
+        
+        # Check if retraining needed
+        new_customers = retrainer.check_new_customers()
+        should_retrain, reason = retrainer.should_retrain(new_customer_threshold=50)
+        
+        # Get recent history
+        history = retrainer.get_retraining_history(limit=5)
+        history_list = history.to_dict('records') if len(history) > 0 else []
+        
+        # Convert timestamps to strings
+        for record in history_list:
+            if 'retrain_date' in record and record['retrain_date']:
+                record['retrain_date'] = str(record['retrain_date'])
+        
+        return {
+            "new_customers_count": new_customers,
+            "retraining_needed": should_retrain,
+            "reason": reason,
+            "threshold": 50,
+            "recent_retraining": history_list
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
+
+@app.post("/retraining/trigger")
+async def trigger_retraining(max_customers: int = 200):
+    """
+    Manually trigger model retraining
+    WARNING: This will take several minutes and block the API
+    """
+    try:
+        print("\n🔔 Manual retraining triggered via API")
+        
+        retrainer = AutoRetrainer()
+        result = retrainer.retrain_model(max_customers=max_customers)
+        
+        if result['success']:
+            return {
+                "status": "success",
+                "message": "Model retrained successfully. Restart API to load new model.",
+                "customers_trained": result['customers_trained'],
+                "samples_trained": result['samples_trained'],
+                "auc": result['auc'],
+                "model_version": result['model_version']
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Retraining failed")
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")
 
 # ==================== HELPER FUNCTIONS ====================
 

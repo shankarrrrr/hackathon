@@ -168,7 +168,22 @@ def apply_custom_css():
             padding: 0.5rem 0.75rem;
             font-size: 0.875rem;
             background-color: #FFFFFF !important;
-            color: #374151 !important;
+            color: #000000 !important;
+        }
+        
+        /* Text input specific - force black text */
+        .stTextInput input {
+            color: #000000 !important;
+        }
+        
+        .stTextInput input::placeholder {
+            color: #9CA3AF !important;
+        }
+        
+        .stTextInput input:focus {
+            color: #000000 !important;
+            border-color: #3B82F6 !important;
+            outline: none !important;
         }
         
         .stTextInput label, .stSelectbox label {

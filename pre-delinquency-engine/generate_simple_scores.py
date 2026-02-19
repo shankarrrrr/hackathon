@@ -100,15 +100,23 @@ def main():
             datetime.now(),
             float(risk_score),
             risk_level,
-            json.dumps(top_features)
+            'v2_heuristic',
+            top_features[0]['feature'],
+            top_features[0]['value'],
+            top_features[1]['feature'],
+            top_features[1]['value'],
+            top_features[2]['feature'],
+            top_features[2]['value']
         ))
     
     # Batch insert
     from psycopg2.extras import execute_batch
     execute_batch(cur, """
         INSERT INTO risk_scores 
-        (customer_id, observation_date, risk_score, risk_level, top_features)
-        VALUES (%s, %s, %s, %s, %s)
+        (customer_id, score_date, risk_score, risk_level, model_version,
+         top_feature_1, top_feature_1_impact, top_feature_2, top_feature_2_impact,
+         top_feature_3, top_feature_3_impact)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, scores, page_size=50)
     
     conn.commit()

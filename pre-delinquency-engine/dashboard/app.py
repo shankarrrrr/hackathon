@@ -1523,11 +1523,11 @@ elif page == "Real-time Monitor":
         st.info("📭 No recent risk scores. Data will appear here as new scores are generated.")
     else:
         # Import for timezone handling
-        from datetime import datetime, timezone
+        from datetime import datetime
         import pandas as pd
         
-        # Ensure datetime objects are timezone-aware
-        current_time = datetime.now(timezone.utc)
+        # Use timezone-naive datetime to match database timestamps
+        current_time = datetime.now()
         
         # Real-time Activity Feed - NEW FEATURE
         st.markdown("### 📡 Live Activity Feed")
@@ -1542,10 +1542,10 @@ elif page == "Real-time Monitor":
             
             if len(high_risk_recent) > 0:
                 for idx, row in high_risk_recent.iterrows():
-                    # Handle timezone-aware datetime
+                    # Convert to datetime and make timezone-naive
                     score_date = pd.to_datetime(row['score_date'])
-                    if score_date.tzinfo is None:
-                        score_date = score_date.replace(tzinfo=timezone.utc)
+                    if score_date.tzinfo is not None:
+                        score_date = score_date.replace(tzinfo=None)
                     
                     time_ago = (current_time - score_date).total_seconds() / 60
                     
@@ -1692,8 +1692,8 @@ elif page == "Real-time Monitor":
         with col1:
             # Data freshness
             latest_score_date = pd.to_datetime(df['score_date'].max())
-            if latest_score_date.tzinfo is None:
-                latest_score_date = latest_score_date.replace(tzinfo=timezone.utc)
+            if latest_score_date.tzinfo is not None:
+                latest_score_date = latest_score_date.replace(tzinfo=None)
             
             minutes_old = (current_time - latest_score_date).total_seconds() / 60
             
@@ -1736,7 +1736,7 @@ elif page == "Real-time Monitor":
             display_df.columns = ['Customer ID', 'Risk Score', 'Risk Level', 'Top Risk Driver', 'Timestamp']
             st.dataframe(display_df, use_container_width=True, hide_index=True)
         
-        st.caption(f"📊 Last updated: {current_time.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        st.caption(f"📊 Last updated: {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
 # ============================================================================
 # MODEL PERFORMANCE PAGE

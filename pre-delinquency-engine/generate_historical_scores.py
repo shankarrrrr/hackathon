@@ -27,6 +27,7 @@ try:
                 customer_id,
                 risk_score,
                 risk_level,
+                model_version,
                 top_feature_1,
                 top_feature_1_impact,
                 top_feature_2,
@@ -87,18 +88,19 @@ try:
                 # Insert historical score
                 conn.execute(text("""
                     INSERT INTO risk_scores 
-                    (customer_id, risk_score, risk_level, score_date,
+                    (customer_id, risk_score, risk_level, score_date, model_version,
                      top_feature_1, top_feature_1_impact,
                      top_feature_2, top_feature_2_impact,
                      top_feature_3, top_feature_3_impact)
                     VALUES 
-                    (:cid, :score, :level, :date,
+                    (:cid, :score, :level, :date, :model_version,
                      :f1, :f1_impact, :f2, :f2_impact, :f3, :f3_impact)
                 """), {
                     'cid': customer['customer_id'],
                     'score': historical_score,
                     'level': historical_level,
                     'date': historical_date,
+                    'model_version': customer['model_version'],
                     'f1': customer['top_feature_1'],
                     'f1_impact': customer['top_feature_1_impact'],
                     'f2': customer['top_feature_2'],

@@ -523,126 +523,157 @@ elif page == "Customer Deep Dive":
     
     # Process analysis when button is clicked
     if analyze_button and customer_id:
-        # API prediction call (Task 5.2)
+        # Query database directly for risk score (Option 1: Use existing scores)
         try:
-            import requests
-            import json as json_lib
-            
-            with st.spinner("Analyzing customer risk profile..."):
-                # Log request
-                st.write(f"🔍 Calling API: {API_URL}/predict")
-                st.write(f"📤 Request payload: {{'customer_id': '{customer_id}'}}")
+            if engine is None:
+                st.error("⚠️ Database connection not available.")
+            else:
+                import pandas as pd
+                from sqlalchemy import text
                 
-                response = requests.post(
-                    f"{API_URL}/predict",
-                    json={"customer_id": customer_id},
-                    timeout=10
-                )
-                
-                # Log response
-                st.write(f"📥 Response status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    result = response.json()
+                with st.spinner("Analyzing customer risk profile..."):
+                    # Log request
+                    st.write(f"🔍 Querying database for customer: {customer_id}")
                     
-                    # Log full response for debugging
-                    with st.expander("🔍 View API Response (Debug)"):
-                        st.json(result)
+                    # Get latest risk score from database
+                    query = text("""
+                        SELECT 
+                            rs.customer_id::text as customer_id,
+                            rs.risk_score,
+                            rs.risk_level,
+                            rs.score_date,
+                            rs.top_feature_1,
+                            rs.top_feature_1_impact,
+                            rs.top_feature_2,
+                            rs.top_feature_2_impact,
+                            rs.top_feature_3,
+                            rs.top_feature_3_impact,
+                            c.monthly_income,
+                            c.account_age_months,
+                            c.income_bracket
+                        FROM risk_scores rs
+                        JOIN customers c ON rs.customer_id = c.customer_id
+                        WHERE rs.customer_id = :customer_id
+                        ORDER BY rs.score_date DESC
+                        LIMIT 1
+                    """)
                     
-                    # Extract data from response
-                    risk_score = result.get('risk_score', 0)
-                    risk_level = result.get('risk_level', 'UNKNOWN')
-                    explanation = result.get('explanation', {})
-                    explanation_text = explanation.get('explanation_text', 'No explanation available')
-                    top_drivers = explanation.get('top_drivers', [])
+                    df = pd.read_sql(query, engine, params={'customer_id': customer_id})
                     
-                    st.write(f"📊 Extracted - Risk Score: {risk_score}, Level: {risk_level}")
-                    st.write(f"💡 Explanation: {explanation_text}")
-                    st.write(f"📈 Top Drivers Count: {len(top_drivers)}")
-                    
-                    st.success("✅ Analysis complete!")
-                    st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
-                    
-                    # Display results in two columns with improved spacing
-                    col1, col2 = st.columns(2, gap="large")
-                    
-                    with col1:
-                        # Risk score gauge chart (Task 5.3)
-                        st.markdown("#### 📊 Risk Score")
-                        st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
-                        
-                        try:
-                            # Create gauge chart using UI component
-                            fig = render_gauge_chart(risk_score, "Risk Score")
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                        except Exception as e:
-                            st.warning("⚠️ Chart could not be rendered. Showing metric instead.")
-                            st.metric("Risk Score", f"{risk_score:.2%}")
-                    
-                    with col2:
-                        # Risk level badge with emoji (Task 5.4)
-                        st.markdown("#### 🎯 Risk Level")
-                        st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
-                        
-                        # Render risk badge using UI component
-                        render_risk_badge(risk_level)
-                    
-                    st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
-                    
-                    # SHAP explanation and top risk drivers (Task 5.6)
-                    st.markdown("### 💡 Risk Explanation")
-                    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
-                    
-                    # Display explanation text in info box
-                    st.info(explanation_text)
-                    
-                    st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
-                    
-                    # Display top risk drivers
-                    st.markdown("### 📈 Top Risk Drivers")
-                    st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Key factors contributing to this customer's risk score</p>", unsafe_allow_html=True)
-                    
-                    if top_drivers and len(top_drivers) > 0:
-                        # Display top 5 drivers using UI component
-                        for i, driver in enumerate(top_drivers[:5], 1):
-                            feature = driver.get('feature', 'Unknown')
-                            value = driver.get('value', 'N/A')
-                            impact = driver.get('impact', 0)
-                            impact_pct = driver.get('impact_pct', 0)
-                            
-                            # Render driver card using UI component
-                            render_risk_driver_card(i, feature, value, impact, impact_pct)
+                    if len(df) == 0:
+                        st.warning(f"⚠️ No risk score found for customer {customer_id}")
+                        st.info("This customer may not have been scored yet. Try running the automated pipeline from Data Management.")
                     else:
-                        st.info("No risk drivers available for this customer.")
-                
-                else:
-                    # Handle non-200 status codes
-                    error_msg = "Unknown error"
-                    try:
-                        error_data = response.json()
-                        error_msg = error_data.get('detail', error_data.get('message', str(error_data)))
-                    except:
-                        error_msg = response.text or f"HTTP {response.status_code}"
-                    
-                    st.error(f"❌ Error from prediction service: {error_msg}")
-                    st.info("Please check that the customer ID is valid and try again. The dashboard will continue operating.")
-        
-        except requests.exceptions.Timeout:
-            st.error("❌ Request timed out. The prediction service is taking too long to respond.")
-            st.info("Please try again later or contact support if the issue persists. The dashboard will continue operating.")
-        
-        except requests.exceptions.ConnectionError:
-            st.error("❌ Cannot connect to prediction service. Please ensure the API is running.")
-            st.info(f"Expected API URL: {API_URL}")
-            st.info("The dashboard will continue operating with limited features.")
-        
-        except requests.exceptions.RequestException as e:
-            st.error(f"❌ Network error: {str(e)}")
-            st.info("Please check your network connection and try again. The dashboard will continue operating.")
+                        row = df.iloc[0]
+                        
+                        # Extract data
+                        risk_score = float(row['risk_score'])
+                        risk_level = row['risk_level']
+                        monthly_income = float(row['monthly_income'])
+                        account_age_months = int(row['account_age_months'])
+                        income_bracket = row['income_bracket']
+                        
+                        # Build top drivers from database
+                        top_drivers = []
+                        for i in range(1, 4):
+                            feature_col = f'top_feature_{i}'
+                            impact_col = f'top_feature_{i}_impact'
+                            if pd.notna(row[feature_col]) and pd.notna(row[impact_col]):
+                                impact = float(row[impact_col])
+                                top_drivers.append({
+                                    "feature": row[feature_col],
+                                    "value": f"{impact:.4f}",
+                                    "impact": impact,
+                                    "impact_pct": abs(impact) * 100
+                                })
+                        
+                        # Generate explanation text
+                        explanation_text = f"This customer has a {risk_level.lower()} risk score of {risk_score:.1%}. "
+                        
+                        if risk_score >= 0.7:
+                            explanation_text += f"Critical risk factors detected. "
+                            explanation_text += f"Monthly income: ${monthly_income:,.0f}, Account age: {account_age_months} months. "
+                            explanation_text += "Immediate intervention strongly recommended."
+                        elif risk_score >= 0.5:
+                            explanation_text += f"Elevated risk detected. "
+                            explanation_text += f"Monthly income: ${monthly_income:,.0f}, Account age: {account_age_months} months. "
+                            explanation_text += "Proactive outreach recommended."
+                        elif risk_score >= 0.3:
+                            explanation_text += f"Moderate risk profile. "
+                            explanation_text += f"Monthly income: ${monthly_income:,.0f}, Account age: {account_age_months} months. "
+                            explanation_text += "Monitor closely for any changes in behavior patterns."
+                        else:
+                            explanation_text += f"Low risk profile with stable indicators. "
+                            explanation_text += f"Monthly income: ${monthly_income:,.0f}, Account age: {account_age_months} months. "
+                            explanation_text += "Customer shows stable financial behavior."
+                        
+                        # Log extracted data
+                        with st.expander("🔍 View Database Query Result (Debug)"):
+                            st.dataframe(df)
+                        
+                        st.write(f"📊 Extracted - Risk Score: {risk_score:.4f}, Level: {risk_level}")
+                        st.write(f"💡 Explanation: {explanation_text}")
+                        st.write(f"📈 Top Drivers Count: {len(top_drivers)}")
+                        
+                        st.success("✅ Analysis complete!")
+                        st.markdown("<div style='margin: 1.5rem 0;'></div>", unsafe_allow_html=True)
+                        
+                        # Display results in two columns with improved spacing
+                        col1, col2 = st.columns(2, gap="large")
+                        
+                        with col1:
+                            # Risk score gauge chart (Task 5.3)
+                            st.markdown("#### 📊 Risk Score")
+                            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
+                            
+                            try:
+                                # Create gauge chart using UI component
+                                fig = render_gauge_chart(risk_score, "Risk Score")
+                                st.plotly_chart(fig, use_container_width=True)
+                                
+                            except Exception as e:
+                                st.warning("⚠️ Chart could not be rendered. Showing metric instead.")
+                                st.metric("Risk Score", f"{risk_score:.2%}")
+                        
+                        with col2:
+                            # Risk level badge with emoji (Task 5.4)
+                            st.markdown("#### 🎯 Risk Level")
+                            st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
+                            
+                            # Render risk badge using UI component
+                            render_risk_badge(risk_level)
+                        
+                        st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
+                        
+                        # SHAP explanation and top risk drivers (Task 5.6)
+                        st.markdown("### 💡 Risk Explanation")
+                        st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
+                        
+                        # Display explanation text in info box
+                        st.info(explanation_text)
+                        
+                        st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
+                        
+                        # Display top risk drivers
+                        st.markdown("### 📈 Top Risk Drivers")
+                        st.markdown("<p style='color: #000000; font-size: 14px; margin-bottom: 1rem;'>Key factors contributing to this customer's risk score</p>", unsafe_allow_html=True)
+                        
+                        if top_drivers and len(top_drivers) > 0:
+                            # Display top drivers using UI component
+                            for i, driver in enumerate(top_drivers, 1):
+                                feature = driver.get('feature', 'Unknown')
+                                value = driver.get('value', 'N/A')
+                                impact = driver.get('impact', 0)
+                                impact_pct = driver.get('impact_pct', 0)
+                                
+                                # Render driver card using UI component
+                                render_risk_driver_card(i, feature, value, impact, impact_pct)
+                        else:
+                            st.info("No risk drivers available for this customer.")
         
         except Exception as e:
-            st.error(f"❌ Unexpected error: {str(e)}")
+            st.error(f"❌ Error loading customer data: {str(e)}")
+            st.info("Please check that the customer ID is valid and try again.")
             st.info("The dashboard will continue operating. Please try again or contact support.")
     
     elif analyze_button and not customer_id:

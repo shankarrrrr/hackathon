@@ -153,7 +153,7 @@ def main():
     print(f"   Avg: {avg_score:.4f}")
     
     print(f"\n✅ Inserted {len(scores)} scores")
-    print("🌐 http://15.206.72.35:8501")
+    print("🌐 http://13.201.206.221:8501")
 
 if __name__ == '__main__':
     random.seed(42)

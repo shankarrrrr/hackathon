@@ -2,12 +2,12 @@
 
 > **AI-powered behavioral analytics that predicts customer defaults 30 days before they happen**
 
-[![Production Deployed](https://img.shields.io/badge/status-live%20on%20AWS-success)](http://15.206.72.35:8501)
+[![Production Deployed](https://img.shields.io/badge/status-live%20on%20AWS-success)](http://13.201.206.221:8501)
 [![Phase](https://img.shields.io/badge/Phase-4%2F5%20Complete-blue)](https://github.com)
 [![Model Recall](https://img.shields.io/badge/recall-85%25-blue)](https://github.com)
 [![Cost](https://img.shields.io/badge/AWS%20cost-%240%2Fmonth-green)](https://github.com)
 
-**🌐 Live Demo:** http://15.206.72.35:8501
+**🌐 Live Demo:** http://13.201.206.221:8501
 
 ---
 
@@ -52,9 +52,10 @@ When these patterns emerge, we alert risk officers **before** the first missed p
 ## 📊 System Statistics & Performance
 
 ### Production Deployment
-- **Live Instance**: http://15.206.72.35:8501
+- **Live Instance**: http://13.201.206.221:8501
 - **Uptime**: 24/7 operational
 - **Infrastructure**: AWS EC2 t3.micro (Free Tier)
+- **Memory**: 2GB reserved RAM with cache clearing
 - **Region**: ap-south-1 (Mumbai, India)
 - **Deployment Time**: <10 minutes (fully automated)
 
@@ -359,9 +360,9 @@ class AdvancedModelTrainer:
 ```
 
 **2. Live Production Instance**
-- **Dashboard**: http://15.206.72.35:8501
-- **API**: http://15.206.72.35:8000
-- **API Docs**: http://15.206.72.35:8000/docs
+- **Dashboard**: http://13.201.206.221:8501
+- **API**: http://13.201.206.221:8000
+- **API Docs**: http://13.201.206.221:8000/docs
 - **Uptime**: 24/7 (since deployment)
 - **Status**: ✅ Operational
 
@@ -1030,11 +1031,11 @@ MIT License - see [LICENSE](LICENSE) file for details
 ✅ **Phase 1:** Data foundation & feature engineering (104 features, 30K customers)
 ✅ **Phase 2:** Model training & optimization (85% recall, 70% AUC-ROC, 3-model ensemble)
 ✅ **Phase 3:** API & dashboard (7 pages, 4,300+ lines, full functionality)
-✅ **Phase 4:** Production deployment (AWS EC2, Docker, live at http://15.206.72.35:8501)
+✅ **Phase 4:** Production deployment (AWS EC2, Docker, live at http://13.201.206.221:8501)
 🔄 **Phase 5:** Improvements & refinements (performance, monitoring, CI/CD)
 
 **Live Production Stats:**
-- 🌐 **Deployed**: http://15.206.72.35:8501
+- 🌐 **Deployed**: http://13.201.206.221:8501
 - 📊 **Dataset**: 30,000 customers, 104 features
 - ⚡ **Performance**: <50ms inference, <3s page load
 - 💰 **Cost**: $0/month (AWS Free Tier)
@@ -1052,7 +1053,7 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 **Ready to prevent defaults instead of reacting to them?**
 
-Visit the live dashboard: **http://15.206.72.35:8501**
+Visit the live dashboard: **http://13.201.206.221:8501**
 
 ---
 
